@@ -1,3 +1,4 @@
+#define RJ45_PLUG_COUNT 2
 #define LED_BLINK_TIME 200
 #define DEBOUNCE_TIME 200
 #define PAGE_DISPLAY_TIME 2000
@@ -16,6 +17,7 @@ typedef struct {
   bool startTimer = false;
   volatile unsigned int count = 0;
   char name[24];
+  char id[24];
   void (*isr)();
 } S0Device;
 
