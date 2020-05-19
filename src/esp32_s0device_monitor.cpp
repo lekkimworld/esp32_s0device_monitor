@@ -115,10 +115,10 @@ void initDisplay() {
 }
 
 void initS0Pins() {
-  for (int i=0, j=sizeof(plugs)/sizeof(RJ45); i<j; i++) {
+  for (int i=0; i<RJ45_PLUG_COUNT; i++) {
     // get next plug
     RJ45 plug = plugs[i];
-
+    
     // loop devices on plug
     for (int k=0; k<plug.activeDevices; k++) {
       // get next device
@@ -130,6 +130,8 @@ void initS0Pins() {
 
       // ensure LED is not on
       pinMode(device.pinLED, OUTPUT);
+      digitalWrite(device.pinLED, HIGH);
+      delay(200);
       digitalWrite(device.pinLED, LOW);
     }
   }
@@ -286,10 +288,6 @@ void setup() {
   printMacAddress();
 
   // setup plugs and connections per plug
-  Serial.println("Initializing pins");
-  initISR();
-  initS0Pins();
-  samplePeriodStart = millis();
   strcpy(plugs[0].name, "Primary RJ45");
   strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].name, "tumbler (Or)   : %d");
   strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].id,   "s0dryer");
@@ -304,7 +302,11 @@ void setup() {
   strcpy(plugs[1].name, "Secondary RJ45");
   strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].name, "Foo (Or)       : %d");
   plugs[1].activeDevices = 0;
-  
+
+  Serial.println("Initializing pins");
+  initISR();
+  initS0Pins();
+  samplePeriodStart = millis();
 }
 
 void loop() {
@@ -313,7 +315,7 @@ void loop() {
   boolean shouldUpdateDisplay = false;
   
   // loop plugs and turn off leds that might be lit up
-  for (int i=0, j=sizeof(plugs)/sizeof(RJ45); i<j; i++) {
+  for (int i=0; i<RJ45_PLUG_COUNT i++) {
     // get next plug
     RJ45 plug = plugs[i];
 
@@ -331,7 +333,7 @@ void loop() {
   if (now - lastPageChange > PAGE_DISPLAY_TIME) {
     shouldUpdateDisplay = true;
     page++;
-    if (plugs[1].activeDevices ==0 || page >= sizeof(plugs)/sizeof(RJ45)) page = 0;
+    if (plugs[1].activeDevices ==0 || page >= RJ45_PLUG_COUNT) page = 0;
     lastPageChange = now;
   }
 
