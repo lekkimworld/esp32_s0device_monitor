@@ -292,9 +292,9 @@ void setup() {
   strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].name, "tumbler (Or)   : %d");
   strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].id,   "s0dryer");
   strcpy(plugs[0].devices[DEVICE_IDX_BROWN].name,  "Vaskemask. (Br): %d");
-  strcpy(plugs[0].devices[DEVICE_IDX_BROWN].id,    "s0dishwasher");
+  strcpy(plugs[0].devices[DEVICE_IDX_BROWN].id,    "s0washer");
   strcpy(plugs[0].devices[DEVICE_IDX_GREEN].name,  "Opvask. (Gr)   : %d");
-  strcpy(plugs[0].devices[DEVICE_IDX_GREEN].id,    "s0washer");
+  strcpy(plugs[0].devices[DEVICE_IDX_GREEN].id,    "s0dishwasher");
   strcpy(plugs[0].devices[DEVICE_IDX_BLUE].name,   "Varmepumpe (Bl): %d");
   strcpy(plugs[0].devices[DEVICE_IDX_BLUE].id,     "s0heatpump");
   plugs[0].activeDevices = 4;
@@ -315,7 +315,7 @@ void loop() {
   boolean shouldUpdateDisplay = false;
   
   // loop plugs and turn off leds that might be lit up
-  for (int i=0; i<RJ45_PLUG_COUNT i++) {
+  for (int i=0; i<RJ45_PLUG_COUNT; i++) {
     // get next plug
     RJ45 plug = plugs[i];
 
