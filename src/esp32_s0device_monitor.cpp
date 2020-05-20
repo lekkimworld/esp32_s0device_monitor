@@ -75,6 +75,11 @@ unsigned long lastPageChange = 0;
 int page = 0;
 unsigned long SAMPLE_DURATION = 2 * 60 * 1000;
 unsigned long samplePeriodStart = 0;
+bool justReset = true;
+
+bool hasWebEndpoint() {
+  return strlen(ENDPOINT_URL) > 0;
+}
 
 void updateDisplay() {
   char buffer[24];
@@ -264,6 +269,43 @@ void prepareDataPayload(char *jsonBuffer, size_t size, RJ45 *workPlugs, unsigned
   Serial.println(jsonBuffer);
 }
 
+void prepareControlRestartPayload(char *jsonBuffer, size_t size) {
+  // create document
+  StaticJsonDocument<256> doc;
+  
+  // get your MAC and IP address
+  char mac_addr[20];
+  getMacAddressString(mac_addr);
+
+  // build payload
+  doc["msgtype"] = "control";
+  doc["deviceId"].set(mac_addr);
+  JsonObject jsonData = doc.createNestedObject("data"); 
+  jsonData["restart"] = true;
+  jsonData["ip"].set(WiFi.localIP().toString());
+    
+  // serialize
+  serializeJson(doc, jsonBuffer, size);
+}
+
+/**
+ * Sends a restart control message to the server at the configured endpoint if there is 
+ * an endpoint and the device just came up.
+ */
+void pingServerOnStart() {
+  if (justReset && hasWebEndpoint()) {
+    // this is the first run - tell web server we restarted
+    justReset = false;
+    
+    // prep payload
+    char payload[256];
+    prepareControlRestartPayload(payload, sizeof(payload));
+    
+    // send payload
+    httpPostData(payload);
+  }
+}
+
 void setup() {
   // setup serial and init display
   Serial.begin(115200);
@@ -310,6 +352,9 @@ void setup() {
 }
 
 void loop() {
+  // send control message to server if we just came up
+  pingServerOnStart();
+
   // update current time
   now = millis();
   boolean shouldUpdateDisplay = false;
@@ -357,8 +402,9 @@ void loop() {
     // prepare payload
     char payload[2048];
     prepareDataPayload(payload, sizeof(payload), plugs_copy, SAMPLE_DURATION);
-    int rc = httpPostData(payload);
+    httpPostData(payload);
     
+    // keep track of when we last sent data
     samplePeriodStart = now;
   }
 }
