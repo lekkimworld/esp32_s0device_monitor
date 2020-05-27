@@ -5,6 +5,7 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <Wire.h>
+#include <ArduinoLog.h>
 
 #include "credentials.h"
 #include "deviceconfig.h"
@@ -152,18 +153,24 @@ void turnOffLed(S0Device *device) {
 }
 
 int httpPostData(char *data) {
+    Log.trace(F("Starting POST of data to server"));
+
     // prepare headers
     char bufferAuthHeader[400];
     sprintf(bufferAuthHeader, "Bearer %s", DEVICE_JWT);
+    Log.trace(F("Constructed value for Authorization header"));
 
     WiFiClientSecure *client = new WiFiClientSecure;
     if (client) {
+        Log.trace(F("Constructed wifi secure client"));
         client->setCACert(rootCACertificate);
+        Log.trace(F("Set root CA certificate"));
         {
             // Add a scoping block for HTTPClient https to make sure it is destroyed before WiFiClientSecure *client is
             HTTPClient https;
             if (https.begin(*client, ENDPOINT_URL)) {
                 // start connection and send HTTP headers
+                Log.trace(F("Opened connection to endpoint: %s"), ENDPOINT_URL);
                 https.addHeader("Authorization", bufferAuthHeader);
                 https.addHeader("Content-Type", "application/json");
                 https.addHeader("Accept", "application/json");
@@ -174,20 +181,19 @@ int httpPostData(char *data) {
                 // httpCode will be negative on error
                 if (httpCode > 0) {
                     // HTTP header has been send and Server response header has been handled
-                    Serial.printf("[HTTPS] POST... code: %d\n", httpCode);
+                    Log.trace(F("Did POST to server - httpCode: %d"), httpCode);
 
                     // file found at server
                     if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
                         String payload = https.getString();
-                        Serial.println(payload);
                     }
                 } else {
-                    Serial.printf("[HTTPS] POST... failed, error: %s\n", https.errorToString(httpCode).c_str());
+                    Log.warning(F("POST failed, error: %s"), https.errorToString(httpCode).c_str());
                 }
 
                 https.end();
             } else {
-                Serial.printf("[HTTPS] Unable to connect\n");
+                Log.warning(F("Unable to connect to endpoint: %s"), ENDPOINT_URL);
             }
         }
 
@@ -195,7 +201,7 @@ int httpPostData(char *data) {
         return 0;
 
     } else {
-        Serial.println("Unable to create client");
+        Log.fatal(F("Unable to create wifi secure client"));
         return 1;
     }
 }
@@ -223,13 +229,11 @@ void printMacAddress() {
     // print MAC address
     char buf[20];
     getMacAddressString(buf);
-    Serial.print("MAC address: ");
-    Serial.println(buf);
+    Log.notice("MAC address: %s", buf);
 }
 
 void printIPAddress() {
-    Serial.print("Received IP: ");
-    Serial.println(WiFi.localIP());
+    Log.notice("Received IP: %s", WiFi.localIP());
 }
 
 void prepareDataPayload(char *jsonBuffer, size_t size, RJ45 *workPlugs, unsigned long sampleDuration) {
@@ -287,11 +291,14 @@ void prepareControlRestartPayload(char *jsonBuffer, size_t size) {
 void pingServerOnStart() {
     if (justReset && hasWebEndpoint()) {
         // this is the first run - tell web server we restarted
+        Log.trace(F("This is first run through loop() since starting - tell web server we restarted"));
         justReset = false;
 
         // prep payload
         char payload[256];
         prepareControlRestartPayload(payload, sizeof(payload));
+        Log.trace("Generated payload for web server");
+        Log.trace(payload);
 
         // send payload
         httpPostData(payload);
@@ -301,14 +308,19 @@ void pingServerOnStart() {
 void setup() {
     // setup serial and init display
     Serial.begin(115200);
+
+    // Initialize with log level and log output. 
+    Log.begin(LOG_LEVEL_VERBOSE, &Serial);
+
     if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-        Serial.println(F("SSD1306 display allocation failed"));
+        Log.fatal(F("SSD1306 display allocation failed"));
         for (;;)
             ;
     }
     initDisplay();
 
     // init wifi
+    Log.trace(F("Starting to initiate wi-fi connection"));
     WiFi.begin(WIFI_SSID, WIFI_PASS);
     int wifiDelayCount = 0;
     while (WiFi.status() != WL_CONNECTED) {
@@ -316,13 +328,14 @@ void setup() {
         ++wifiDelayCount;
         char buffer[64];
         sprintf(buffer, "Initializing wifi (%d)", wifiDelayCount);
+        Log.trace(buffer);
         writeDisplay(buffer);
-        Serial.println(buffer);
     }
     printIPAddress();
     printMacAddress();
 
     // setup plugs and connections per plug
+    Log.trace(F("Configuring plugs and devices"));
     strcpy(plugs[0].name, "Yellow RJ45");
     strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].name, "tumbler (Or)   : %d");
     strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].id,   "s0dryer");
@@ -339,7 +352,7 @@ void setup() {
     strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].name, "Bad, gulvvarme : %d");
     plugs[1].activeDevices = 1;
 
-    Serial.println("Initializing pins");
+    Log.trace("Initializing pins");
     initISR();
     initS0Pins();
     samplePeriodStart = millis();
@@ -380,7 +393,7 @@ void loop() {
     if (shouldUpdateDisplay) updateDisplay();
 
     if (now - samplePeriodStart > SAMPLE_DURATION) {
-        Serial.println("Will post to server...");
+        Log.trace(F("Sample period lapsed - will post to server..."));
 
         // copy S0Device structs
         RJ45 plugs_copy[RJ45_PLUG_COUNT];
@@ -393,12 +406,14 @@ void loop() {
             }
         }
 
+        // keep track of when we last sent data
+        samplePeriodStart = now;
+
         // prepare payload
         char payload[2048];
         prepareDataPayload(payload, sizeof(payload), plugs_copy, SAMPLE_DURATION);
+        Log.trace("Prepared data payload for server");
+        Log.trace(payload);
         httpPostData(payload);
-
-        // keep track of when we last sent data
-        samplePeriodStart = now;
     }
 }
