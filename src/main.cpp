@@ -6,10 +6,11 @@
 #include <WiFi.h>
 #include <Wire.h>
 #include <ArduinoLog.h>
+#include <EEPROM.h>
 
 #include "credentials.h"
-#include "deviceconfig.h"
 #include "isr.h"
+#include "deviceconfig.h"
 
 // Let's Encrypt, SRG Root X1 (self-signed), https://letsencrypt.org/certs/isrgrootx1.pem.txt
 const char *rootCACertificate_LetsEncrypt =
@@ -79,9 +80,102 @@ int page = 0;
 unsigned long SAMPLE_DURATION = 2 * 60 * 1000;
 unsigned long samplePeriodStart = 0;
 bool justReset = true;
+WifiConfig wifiCfg;
+DeviceConfig deviceCfg;
+ConfigWebServer *server;
 
-bool hasWebEndpoint() {
-    return strlen(ENDPOINT_URL) > 0;
+/**
+ * Reads the configuration from the flash and returns 1 if successful and 
+ * 0 otherwise.
+ */
+int readConfiguration() {
+    EEPROM.begin(
+        sizeof(WifiConfig) + 
+        sizeof(DeviceConfig) + 
+        2 * sizeof(RJ45Config) + 
+        8 * sizeof(S0Config)
+    );
+    int offset = 0;
+
+    // read device config
+    EEPROM.get(offset, deviceCfg);
+    offset += sizeof(DeviceConfig);
+
+    // validate config
+    if (deviceCfg.version != CONFIGURATION_VERSION) {
+        // not a valid config
+        Log.trace(F("Couldn't find device config of required version (%d) in flash" CR), CONFIGURATION_VERSION);
+        return false;
+    }
+    Log.trace(F("Read DEVICE configuration from flash - data follows" CR));
+    Log.trace(F("Endpoint  : %s" CR), deviceCfg.endpoint);
+    Log.trace(F("JWT       : %s" CR), deviceCfg.jwt);
+    Log.trace(F("Delay post: %l" CR), deviceCfg.delay_post);
+
+    // read wifi config
+    EEPROM.get(offset, wifiCfg);
+    offset += sizeof(WifiConfig);
+    Log.trace(F("Read WIFI configuration from flash - data follows" CR));
+    Log.trace(F("SSID      : %s" CR), wifiCfg.ssid);
+    Log.trace(F("Password  : %s" CR), wifiCfg.password);
+    Log.trace(F("Keep AP on: %d" CR), wifiCfg.keep_ap_on);
+
+    // read config for first rj45 and then devices
+    RJ45Config rj45cfg_0;
+    S0Config s0config_0[4];
+    EEPROM.get(offset, rj45cfg_0);
+    offset += sizeof(RJ45Config);
+    for (uint8_t i=0; i<4; i++) {
+        EEPROM.get(offset, s0config_0[i]);
+        offset += sizeof(S0Config);
+    }
+
+    // read config for second rj45 and then devices
+    RJ45Config rj45cfg_1;
+    S0Config s0config_1[4];
+    EEPROM.get(offset, rj45cfg_1);
+    offset += sizeof(RJ45Config);
+    for (uint8_t i=0; i<4; i++) {
+        EEPROM.get(offset, s0config_1[i]);
+        offset += sizeof(S0Config);
+    }
+
+    // move S0Config into plug config
+    strcpy(plugs[0].name, rj45cfg_0.name);
+    strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].name, s0config_0[0].name);
+    strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].id,   s0config_0[0].id);
+    if (strlen(s0config_0[0].id) > 0) plugs[0].activeDevices++;
+    strcpy(plugs[0].devices[DEVICE_IDX_BROWN].name,  s0config_0[1].name);
+    strcpy(plugs[0].devices[DEVICE_IDX_BROWN].id,    s0config_0[1].id);
+    if (strlen(s0config_0[1].id) > 0) plugs[0].activeDevices++;
+    strcpy(plugs[0].devices[DEVICE_IDX_GREEN].name,  s0config_0[2].name);
+    strcpy(plugs[0].devices[DEVICE_IDX_GREEN].id,    s0config_0[2].id);
+    if (strlen(s0config_0[2].id) > 0) plugs[0].activeDevices++;
+    strcpy(plugs[0].devices[DEVICE_IDX_BLUE].name,   s0config_0[3].name);
+    strcpy(plugs[0].devices[DEVICE_IDX_BLUE].id,     s0config_0[3].id);
+    if (strlen(s0config_0[3].id) > 0) plugs[0].activeDevices++;
+
+    strcpy(plugs[1].name, rj45cfg_1.name);
+    plugs[1].activeDevices = 0;
+    strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].name, s0config_1[0].name);
+    strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].id,   s0config_1[0].id);
+    if (strlen(s0config_1[0].id) > 0) plugs[1].activeDevices++;
+    strcpy(plugs[1].devices[DEVICE_IDX_BROWN].name,  s0config_1[1].name);
+    strcpy(plugs[1].devices[DEVICE_IDX_BROWN].id,    s0config_1[1].id);
+    if (strlen(s0config_1[1].id) > 0) plugs[1].activeDevices++;
+    strcpy(plugs[1].devices[DEVICE_IDX_GREEN].name,  s0config_1[2].name);
+    strcpy(plugs[1].devices[DEVICE_IDX_GREEN].id,    s0config_1[2].id);
+    if (strlen(s0config_1[2].id) > 0) plugs[1].activeDevices++;
+    strcpy(plugs[1].devices[DEVICE_IDX_BLUE].name,   s0config_1[3].name);
+    strcpy(plugs[1].devices[DEVICE_IDX_BLUE].id,     s0config_1[3].id);
+    if (strlen(s0config_1[3].id) > 0) plugs[1].activeDevices++;
+
+    // return
+    return 0;
+}
+
+bool hasValidEndpointConfig() {
+    return strlen(deviceCfg.endpoint) > 0 && strlen(deviceCfg.jwt) > 0;
 }
 
 void updateDisplay() {
@@ -153,24 +247,24 @@ void turnOffLed(S0Device *device) {
 }
 
 int httpPostData(char *data) {
-    Log.trace(F("Starting POST of data to server"));
+    Log.trace(F("Starting POST of data to server" CR));
 
     // prepare headers
     char bufferAuthHeader[400];
-    sprintf(bufferAuthHeader, "Bearer %s", DEVICE_JWT);
-    Log.trace(F("Constructed value for Authorization header"));
+    sprintf(bufferAuthHeader, "Bearer %s", deviceCfg.jwt);
+    Log.trace(F("Constructed value for Authorization header" CR));
 
     WiFiClientSecure *client = new WiFiClientSecure;
     if (client) {
-        Log.trace(F("Constructed wifi secure client"));
+        Log.trace(F("Constructed wifi secure client" CR));
         client->setCACert(rootCACertificate);
-        Log.trace(F("Set root CA certificate"));
+        Log.trace(F("Set root CA certificate" CR));
         {
             // Add a scoping block for HTTPClient https to make sure it is destroyed before WiFiClientSecure *client is
             HTTPClient https;
-            if (https.begin(*client, ENDPOINT_URL)) {
+            if (https.begin(*client, deviceCfg.endpoint)) {
                 // start connection and send HTTP headers
-                Log.trace(F("Opened connection to endpoint: %s"), ENDPOINT_URL);
+                Log.trace(F("Opened connection to endpoint: %s" CR), deviceCfg.endpoint);
                 https.addHeader("Authorization", bufferAuthHeader);
                 https.addHeader("Content-Type", "application/json");
                 https.addHeader("Accept", "application/json");
@@ -181,7 +275,7 @@ int httpPostData(char *data) {
                 // httpCode will be negative on error
                 if (httpCode > 0) {
                     // HTTP header has been send and Server response header has been handled
-                    Log.trace(F("Did POST to server - httpCode: %d"), httpCode);
+                    Log.trace(F("Did POST to server - httpCode: %d" CR), httpCode);
 
                     // file found at server
                     if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
@@ -193,7 +287,7 @@ int httpPostData(char *data) {
 
                 https.end();
             } else {
-                Log.warning(F("Unable to connect to endpoint: %s"), ENDPOINT_URL);
+                Log.warning(F("Unable to connect to endpoint: %s"), deviceCfg.endpoint);
             }
         }
 
@@ -223,6 +317,15 @@ void getMacAddressString(char *buffer) {
 }
 
 /**
+ * Convert mac address to a char buffer.
+ */
+void getMacAddressStringNoColon(char *buffer) {
+    byte mac[6];
+    getMacAddress(mac);
+    sprintf(buffer, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
+/**
  * Print MAC address to serial console
  */
 void printMacAddress() {
@@ -234,6 +337,12 @@ void printMacAddress() {
 
 void printIPAddress() {
     Log.notice("Received IP: %s", WiFi.localIP());
+}
+
+void buildNetworkName(char* buffer) {
+  char mac_addr[18];
+  getMacAddressStringNoColon(mac_addr);
+  sprintf(buffer, "S0Monitor-%s", mac_addr);
 }
 
 void prepareDataPayload(char *jsonBuffer, size_t size, RJ45 *workPlugs, unsigned long sampleDuration) {
@@ -285,24 +394,53 @@ void prepareControlRestartPayload(char *jsonBuffer, size_t size) {
 }
 
 /**
- * Sends a restart control message to the server at the configured endpoint if there is 
- * an endpoint and the device just came up.
+ * Sends a restart control message to the server at the configured endpoint 
+ * if we have endpoint config and JWT, the the device just came up and 
+ * we are connected to wifi.
  */
 void pingServerOnStart() {
-    if (justReset && hasWebEndpoint()) {
+    if (justReset && hasValidEndpointConfig() && WiFi.isConnected()) {
         // this is the first run - tell web server we restarted
-        Log.trace(F("This is first run through loop() since starting - tell web server we restarted"));
+        Log.trace(F("This is first run through loop() since starting - tell web server we restarted" CR));
         justReset = false;
 
         // prep payload
         char payload[256];
         prepareControlRestartPayload(payload, sizeof(payload));
-        Log.trace("Generated payload for web server");
-        Log.trace(payload);
+        Log.trace(F("Generated payload for web server: %s" CR), payload);
 
         // send payload
         httpPostData(payload);
     }
+}
+
+void initializeWifi() {
+    // init wifi
+    Log.trace(F("Starting to initiate wi-fi connection" CR));
+    WiFi.begin(wifiCfg.ssid, wifiCfg.password);
+    int wifiDelayCount = 0;
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        ++wifiDelayCount;
+        char buffer[64];
+        sprintf(buffer, "Initializing wifi (%d)" CR, wifiDelayCount);
+        Log.trace(buffer);
+        writeDisplay(buffer);
+    }
+    printIPAddress();
+    printMacAddress();
+}
+
+/**
+ * Using configuration from the configured RJ45 plugs will initialize 
+ * the pins as required. Whether in use or not we will still configure 
+ * them.
+ */
+void initializePins() {
+    // setup plugs and connections per plug
+    Log.trace(F("Initializing pins" CR));
+    initISR();
+    initS0Pins();
 }
 
 void setup() {
@@ -313,52 +451,42 @@ void setup() {
     Log.begin(LOG_LEVEL_VERBOSE, &Serial);
 
     if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-        Log.fatal(F("SSD1306 display allocation failed"));
-        for (;;)
-            ;
+        for (;;) {
+            Log.fatal(F("SSD1306 display allocation failed"));
+            delay(5000);
+        }
     }
     initDisplay();
 
-    // init wifi
-    Log.trace(F("Starting to initiate wi-fi connection"));
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
-    int wifiDelayCount = 0;
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(1000);
-        ++wifiDelayCount;
-        char buffer[64];
-        sprintf(buffer, "Initializing wifi (%d)", wifiDelayCount);
-        Log.trace(buffer);
-        writeDisplay(buffer);
+    // start AP
+    char ssid[32];
+    buildNetworkName(ssid);
+    WiFi.softAP(ssid, "");
+    server = new ConfigWebServer(&deviceCfg, &wifiCfg);
+    Log.trace(F("Started AP with SSID: %s" CR), ssid);
+
+    // read config
+    int rc = readConfiguration();
+    if (!rc) {
+        // we couldn't read a valid config
+
+    } else {
+        // we have valid config
+        initializeWifi();
+        initializePins();
+        samplePeriodStart = millis();
     }
-    printIPAddress();
-    printMacAddress();
-
-    // setup plugs and connections per plug
-    Log.trace(F("Configuring plugs and devices"));
-    strcpy(plugs[0].name, "Yellow RJ45");
-    strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].name, "tumbler (Or)   : %d");
-    strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].id,   "s0dryer");
-    strcpy(plugs[0].devices[DEVICE_IDX_BROWN].name,  "Vaskemask. (Br): %d");
-    strcpy(plugs[0].devices[DEVICE_IDX_BROWN].id,    "s0washer");
-    strcpy(plugs[0].devices[DEVICE_IDX_GREEN].name,  "Opvask. (Gr)   : %d");
-    strcpy(plugs[0].devices[DEVICE_IDX_GREEN].id,    "s0dishwasher");
-    strcpy(plugs[0].devices[DEVICE_IDX_BLUE].name,   "Varmepumpe (Bl): %d");
-    strcpy(plugs[0].devices[DEVICE_IDX_BLUE].id,     "s0heatpump");
-    plugs[0].activeDevices = 4;
-
-    strcpy(plugs[1].name, "White RJ45");
-    strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].id,   "s0floorbath");
-    strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].name, "Bad, gulvvarme : %d");
-    plugs[1].activeDevices = 1;
-
-    Log.trace("Initializing pins");
-    initISR();
-    initS0Pins();
-    samplePeriodStart = millis();
 }
 
 void loop() {
+    // disable AP 
+    if ((WiFi.softAPIP() && millis() > DELAY_TURNOFF_AP) && wifiCfg.keep_ap_on == false) {
+        // diable AP
+        Log.trace(F("Disabling AP..." CR));
+        WiFi.softAPdisconnect(false);
+        WiFi.enableAP(false);
+    }
+
     // send control message to server if we just came up
     pingServerOnStart();
 
@@ -392,8 +520,8 @@ void loop() {
     // update display if appropriate
     if (shouldUpdateDisplay) updateDisplay();
 
-    if (now - samplePeriodStart > SAMPLE_DURATION) {
-        Log.trace(F("Sample period lapsed - will post to server..."));
+    if (WiFi.isConnected() && now - samplePeriodStart > SAMPLE_DURATION) {
+        Log.trace(F("Sample period lapsed - will post to server..." CR));
 
         // copy S0Device structs
         RJ45 plugs_copy[RJ45_PLUG_COUNT];
@@ -412,8 +540,7 @@ void loop() {
         // prepare payload
         char payload[2048];
         prepareDataPayload(payload, sizeof(payload), plugs_copy, SAMPLE_DURATION);
-        Log.trace("Prepared data payload for server");
-        Log.trace(payload);
+        Log.trace(F("Prepared data payload for server: %s" CR), payload);
         httpPostData(payload);
     }
 }

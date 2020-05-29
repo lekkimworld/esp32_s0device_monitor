@@ -1,16 +1,128 @@
-#include "deviceconfig.h"
+#include <ArduinoLog.h>
 #include "version.h"
-#include <ESPAsyncWebServer.h>
+#include "deviceconfig.h"
 
-AsyncWebServer server(80);
+DeviceConfig *_deviceCfg;
 
-void webHeader(char* buffer, bool back, char* title) {
-    strcpy(buffer, "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"initial-scale=1.0\"><title>SensorCentral</title><link rel=\"stylesheet\" href=\"./styles.css\"></head><body>");
-    if (back) strcat(buffer, "<div class=\"position\"><a href=\"./\">Back</a></div>");
-    strcat(buffer, "<div class=\"position title\">");
-    strcat(buffer, title);
-    strcat(buffer, "</div>");
+void _header(AsyncResponseStream *response, bool back, const char* title) {
+    response->println("<!DOCTYPE html><html><head>" \
+        "<meta name=\"viewport\" content=\"initial-scale=1.0\">" \
+        "<title>SensorCentral</title>" \
+        "<link rel=\"stylesheet\" href=\"/styles.css\">" \
+        "</head>" \
+        "<body>");
+    if (back) response->println("<div class=\"position\"><a href=\"./\">Back</a></div>");
+    response->printf("<div class=\"position title\">%s</div>", title);
 }
+void _footer(AsyncResponseStream *response) {
+    response->printf("<div class=\"position footer right\">%s<br/>%s</div>", VERSION_NUMBER, VERSION_LASTCHANGE);
+    response->println("</body></html>");
+}
+
+ConfigWebServer::ConfigWebServer(DeviceConfig *deviceCfg, WifiConfig *wifiCfg) {
+    Log.trace(F("Constructing ConfigWebServer instance" CR));
+    this->deviceCfg = deviceCfg;
+    this->wifiCfg = wifiCfg;
+
+    // create server
+    this->server = new AsyncWebServer(80);
+
+    // add routes
+    this->server->onNotFound([](AsyncWebServerRequest *request) {
+        request->send(404, "text/plain", "Not found");
+    });
+    this->server->on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+        char data[] = \
+        "<div class=\"position menuitem height30\"><a href=\"./wificonfig.html\">Wi-Fi Config.</a></div>\n" \
+        "<div class=\"position menuitem height30\"><a href=\"./deviceconfig.html\">Device Config.</a></div>\n" \
+        "<div class=\"position menuitem height30\"><a href=\"./data.html\">Data</a></div>\n" \
+        "<div class=\"position menuitem height30\"><a href=\"./httpstatus.html\">HTTP status</a></div>";
+
+        AsyncResponseStream *response = request->beginResponseStream("text/html");
+        _header(response, false, "Menu");
+        response->print(data);
+        response->printf("<div class=\"position footer right\">%s<br/>%s</div>", VERSION_NUMBER, VERSION_LASTCHANGE);
+        response->println("</body></html>");
+        request->send(response);
+    });
+    this->server->on("/wificonfig.html", HTTP_GET, [wifiCfg](AsyncWebServerRequest *request){
+        AsyncResponseStream *response = request->beginResponseStream("text/html");
+        response->setCode(200);
+
+        _header(response, true, "Wi-Fi Config.");
+        response->print("<div class=\"position menuitem\">");
+        response->print("<p>");
+        response->printf("Current SSID: %s<br/>", strlen(wifiCfg->ssid) == 0 ? "" : wifiCfg->ssid);
+        response->printf("Current Password: %.4s****<br/>", wifiCfg->password);
+        response->printf("Keep AP on: %s<br/>", wifiCfg->keep_ap_on ? "Yes" : "No");
+        response->printf("Status: %s</p>", WiFi.status() == WL_CONNECTED ? "Connected" : "NOT connected");
+        response->print("</p>");
+        response->print("<form method=\"post\" action=\"/wifi\">");
+        response->print("<table border=\"0\">");
+        response->print("<tr><td align=\"left\">SSID</td><td><input type=\"text\" name=\"ssid\" autocomplete=\"off\"></input></td></tr>");
+        response->print("<tr><td align=\"left\">Password</td><td><input type=\"text\" name=\"password\" autocomplete=\"off\"></input></td></tr>");
+        response->print("<tr><td align=\"left\">Keep AP on</td><td><input type=\"checkbox\" name=\"keep_ap_on\" value=\"1\"></input></td></tr>");
+        response->print("<tr><td colspan=\"2\" align=\"right\"><input type=\"submit\"></input></td></tr>");
+        response->print("</table>");
+        response->print("</div>");
+        _footer(response);
+        
+        request->send(response);
+    });
+    this->server->on("/deviceconfig.html", HTTP_GET, [](AsyncWebServerRequest *request) {
+        AsyncResponseStream *response = request->beginResponseStream("text/html");
+        response->setCode(200);
+
+        _header(response, true, "Device Config.");
+        _footer(response);
+
+        request->send(response);
+    });
+    this->server->on("/styles.css", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "text/css", "* {font-size: 14pt;}\n" \
+        "a {font-weight: bold;}\n" \
+        "table {margin-left:auto;margin-right:auto;}\n" \
+        ".position {width: 60%; margin-bottom: 10px; position: relative; margin-left: auto; margin-right: auto;}\n" \
+        ".title {text-align: center; font-weight: bold; font-size: 20pt;}\n" \
+        ".right {text-align: right;}\n" \
+        ".footer {font-size: 10pt; font-style: italic;}\n" \
+        ".menuitem {text-align: center; background-color: #efefef; cursor: pointer; border: 1px solid black;}\n" \
+        ".height30 {height: 30px;}\n");
+    });
+    this->server->on("/foo", HTTP_GET, [](AsyncWebServerRequest *request){
+        
+    });
+
+    Log.trace(F("Constructed ConfigWebServer instance - starting to accept incoming requests" CR));
+    this->server->begin();
+}
+
+ConfigWebServer::~ConfigWebServer() {
+    Log.trace(F("Destructing ConfigWebServer instance - ending server and releasing memory" CR));
+    this->server->end();
+    delete this->server;
+}
+
+/*
+void initWebserver(DeviceConfig *deviceCfg, WifiConfig *wifiCfg) {
+    // save
+    _wifiCfg = wifiCfg;
+    _deviceCfg = deviceCfg;
+
+    // get routes
+    server.on("/", HTTP_GET, _get_root);
+    server.on("/wificonfig.html", HTTP_GET, _get_wificonfig);
+    server.on("/deviceconfig.html", HTTP_GET, _get_deviceconfig);
+    server.on("/styles.css", HTTP_GET, _get_CSS);
+    server.onNotFound(_notFound);
+
+    // start
+    server.begin();
+}
+*/
+
+
+/*
 
 void webRestarting(char* buffer) {
     char title[] = "Restarting";
@@ -18,7 +130,52 @@ void webRestarting(char* buffer) {
     strcat(buffer, "</body></html>");
 }
 
-/*
+void _notFound(AsyncWebServerRequest *request) {
+    request->send(404, "text/plain", "Not found");
+}
+
+
+
+void _get_root(AsyncWebServerRequest *request) {
+    char data[] = \
+    "<div class=\"position menuitem height30\"><a href=\"./wificonfig.html\">Wi-Fi Config.</a></div>\n" \
+    "<div class=\"position menuitem height30\"><a href=\"./deviceconfig.html\">Device Config.</a></div>\n" \
+    "<div class=\"position menuitem height30\"><a href=\"./data.html\">Data</a></div>\n" \
+    
+    
+    "<div class=\"position menuitem height30\"><a href=\"./httpstatus.html\">HTTP status</a></div>";
+
+    char response[1024];
+    char title[] = "Menu";
+    webHeader(response, false, title);
+    strcat(response, data);
+    strcat(response, "<div class=\"position footer right\">");
+    strcat(response, VERSION_NUMBER);
+    strcat(response, "<br/>");
+    strcat(response, VERSION_LASTCHANGE);
+    strcat(response, "</div>");
+    strcat(response, "</body></html>");
+    request->send(200, "text/html", response);
+}
+
+
+
+ConfigWebserver::ConfigWebserver(DeviceConfig *deviceCfg, WifiConfig *wifiCfg) {
+    _wifiCfg = wifiCfg;
+    _deviceCfg = deviceCfg;
+}
+void ConfigWebserver::init() {
+    // add paths
+    server.on("/", HTTP_GET, _get_root);
+    server.on("/wificonfig.html", HTTP_GET, _get_wificonfig);
+    server.on("/deviceconfig.html", HTTP_GET, _get_deviceconfig);
+    server.on("/styles.css", HTTP_GET, _get_CSS);
+    server.onNotFound(_notFound);
+    server.begin();    
+}
+
+
+
 void webHandle_GetRoot() {
     char response[1024];
     webHeader(response, false, "Menu");
@@ -206,33 +363,7 @@ void webHandle_PostSensorForm() {
     }
 }
 
-void webHandle_GetWifiConfig() {
-    char response[1024];
-    webHeader(response, true, "Wi-Fi Config.");
-    strcat(response, "<div class=\"position menuitem\">");
-    strcat(response, "<p>");
-    strcat(response, "Current SSID: ");
-    strcat(response, wifi_data.ssid);
-    strcat(response, "<br/>");
-    strcat(response, "Current Password: ");
-    strncat(response, wifi_data.password, 4);
-    strcat(response, "****<br/>");
-    strcat(response, "Keep AP on: ");
-    strcat(response, wifi_data.keep_ap_on ? "Yes" : "No");
-    strcat(response, "<br/>");
-    strcat(response, "Status: ");
-    strcat(response, WiFi.status() == WL_CONNECTED ? "Connected" : "NOT connected");
-    strcat(response, "</p>");
-    strcat(response, "<form method=\"post\" action=\"/wifi\">");
-    strcat(response, "<table border=\"0\">");
-    strcat(response, "<tr><td align=\"left\">SSID</td><td><input type=\"text\" name=\"ssid\" autocomplete=\"off\"></input></td></tr>");
-    strcat(response, "<tr><td align=\"left\">Password</td><td><input type=\"text\" name=\"password\" autocomplete=\"off\"></input></td></tr>");
-    strcat(response, "<tr><td align=\"left\">Keep AP on</td><td><input type=\"checkbox\" name=\"keep_ap_on\" value=\"1\"></input></td></tr>");
-    strcat(response, "<tr><td colspan=\"2\" align=\"right\"><input type=\"submit\"></input></td></tr>");
-    strcat(response, "</table>");
-    strcat(response, "</div></body></html>");
-    server.send(200, "text/html", response);
-}
+
 
 void webHandle_PostWifiForm() {
     if (!server.hasArg("ssid") || !server.hasArg("password") || server.arg("ssid") == NULL || server.arg("password") == NULL) {
@@ -258,65 +389,4 @@ void webHandle_PostWifiForm() {
 }
 
 
-
 */
-
-void _notFound(AsyncWebServerRequest *request) {
-    request->send(404, "text/plain", "Not found");
-}
-
-void _get_CSS(AsyncWebServerRequest *request) {
-    char response[] = \
-    "* {font-size: 14pt;}\n" \
-    "a {font-weight: bold;}\n" \
-    "table {margin-left:auto;margin-right:auto;}\n" \
-    ".position {width: 60%; margin-bottom: 10px; position: relative; margin-left: auto; margin-right: auto;}\n" \
-    ".title {text-align: center; font-weight: bold; font-size: 20pt;}\n" \
-    ".right {text-align: right;}\n" \
-    ".footer {font-size: 10pt; font-style: italic;}\n" \
-    ".menuitem {text-align: center; background-color: #efefef; cursor: pointer; border: 1px solid black;}\n" \
-    ".height30 {height: 30px;}\n"
-    ;
-
-    request->send(200, "text/css", response);
-}
-
-void _get_root(AsyncWebServerRequest *request) {
-    char data[] = \
-    "<div class=\"position menuitem height30\">\n" \
-    "<a href=\"./data.html\">Data</a></div>\n" \
-    "<div class=\"position menuitem height30\"><a href=\"./s0config.html\">S0 Config.</a></div>\n" \
-    "<div class=\"position menuitem height30\"><a href=\"./wificonfig.html\">Wi-Fi Config.</a></div>\n" \
-    "<div class=\"position menuitem height30\"><a href=\"./httpstatus.html\">HTTP status</a></div>";
-
-    char response[1024];
-    char title[] = "Menu";
-    webHeader(response, false, title);
-    strcat(response, data);
-    strcat(response, "<div class=\"position footer right\">");
-    strcat(response, VERSION_NUMBER);
-    strcat(response, "<br/>");
-    strcat(response, VERSION_LASTCHANGE);
-    strcat(response, "</div>");
-    strcat(response, "</body></html>");
-    request->send(200, "text/html", response);
-
-    request->send(200, "text/plain", "Not found");
-}
-
-void initWebserver() {
-    
-    server.on("/", HTTP_GET, _get_root);
-    /*
-    server.on("/data.html", HTTP_GET, webHandle_GetData);
-    server.on("/sensorconfig.html", HTTP_GET, webHandle_GetSensorConfig);
-    server.on("/sensor", HTTP_POST, webHandle_PostSensorForm);
-    server.on("/wificonfig.html", HTTP_GET, webHandle_GetWifiConfig);
-    server.on("/wifi", HTTP_POST, webHandle_PostWifiForm);
-    server.on("/httpstatus.html", HTTP_GET, webHandle_GetHttpStatus);
-    
-    */
-
-    server.on("/styles.css", HTTP_GET, _get_CSS);
-    server.onNotFound(_notFound);
-}

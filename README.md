@@ -67,3 +67,24 @@ S0- --> button left --> 4,7kOhm --> signal pin
         * 1
         * 3
         * 23
+
+## Dependencies ##
+ArduinoLog
+https://github.com/thijse/Arduino-Log
+
+ Log.trace(F("Configuring plugs and devices"));
+    strcpy(plugs[0].name, "Yellow RJ45");
+    strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].name, "tumbler (Or)   : %d");
+    strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].id,   "s0dryer");
+    strcpy(plugs[0].devices[DEVICE_IDX_BROWN].name,  "Vaskemask. (Br): %d");
+    strcpy(plugs[0].devices[DEVICE_IDX_BROWN].id,    "s0washer");
+    strcpy(plugs[0].devices[DEVICE_IDX_GREEN].name,  "Opvask. (Gr)   : %d");
+    strcpy(plugs[0].devices[DEVICE_IDX_GREEN].id,    "s0dishwasher");
+    strcpy(plugs[0].devices[DEVICE_IDX_BLUE].name,   "Varmepumpe (Bl): %d");
+    strcpy(plugs[0].devices[DEVICE_IDX_BLUE].id,     "s0heatpump");
+    plugs[0].activeDevices = 4;
+
+    strcpy(plugs[1].name, "White RJ45");
+    strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].id,   "s0floorbath");
+    strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].name, "Bad, gulvvarme : %d");
+    plugs[1].activeDevices = 1;

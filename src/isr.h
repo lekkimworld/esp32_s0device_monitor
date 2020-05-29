@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include "types.h"
 
 RJ45 plugs[2];

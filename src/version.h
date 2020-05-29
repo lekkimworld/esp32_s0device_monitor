@@ -1,2 +1,2 @@
-#define VERSION_NUMBER "20200526T0917"
-#define VERSION_LASTCHANGE "Rename main file and refactor isr"
+#define VERSION_NUMBER "20200529T0920"
+#define VERSION_LASTCHANGE "Working on web config ui"
