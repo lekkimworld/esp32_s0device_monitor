@@ -51,19 +51,19 @@ void IRAM_ATTR isr_plug1_blue() {
 }
 
 void initISR() {
-  plugs[0].devices[DEVICE_IDX_ORANGE].pinIRQ = 36;
+  plugs[0].devices[DEVICE_IDX_ORANGE].pinIRQ = 35;
   plugs[0].devices[DEVICE_IDX_ORANGE].pinLED = 19;
   plugs[0].devices[DEVICE_IDX_ORANGE].isr = isr_plug0_orange;
   
-  plugs[0].devices[DEVICE_IDX_BROWN].pinIRQ = 39;
+  plugs[0].devices[DEVICE_IDX_BROWN].pinIRQ = 34;
   plugs[0].devices[DEVICE_IDX_BROWN].pinLED = 18;
   plugs[0].devices[DEVICE_IDX_BROWN].isr = isr_plug0_brown;
 
-  plugs[0].devices[DEVICE_IDX_BLUE].pinIRQ = 34;
+  plugs[0].devices[DEVICE_IDX_BLUE].pinIRQ = 39;
   plugs[0].devices[DEVICE_IDX_BLUE].pinLED = 5;
   plugs[0].devices[DEVICE_IDX_BLUE].isr = isr_plug0_blue;
 
-  plugs[0].devices[DEVICE_IDX_GREEN].pinIRQ = 35;
+  plugs[0].devices[DEVICE_IDX_GREEN].pinIRQ = 36;
   plugs[0].devices[DEVICE_IDX_GREEN].pinLED = 17;
   plugs[0].devices[DEVICE_IDX_GREEN].isr = isr_plug0_green;
 

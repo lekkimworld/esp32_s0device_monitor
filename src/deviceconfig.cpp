@@ -23,7 +23,13 @@ ConfigWebServer::ConfigWebServer(DeviceConfig *deviceCfg, WifiConfig *wifiCfg) {
     Log.trace(F("Constructing ConfigWebServer instance" CR));
     this->deviceCfg = deviceCfg;
     this->wifiCfg = wifiCfg;
+}
 
+void ConfigWebServer::setWifiChangedCallback(WifiConfigChangedCallback wifiFunc) {
+    this->wifiFunc = wifiFunc;
+}
+
+void ConfigWebServer::init() {
     // create server
     this->server = new AsyncWebServer(80);
 
@@ -45,19 +51,19 @@ ConfigWebServer::ConfigWebServer(DeviceConfig *deviceCfg, WifiConfig *wifiCfg) {
         response->println("</body></html>");
         request->send(response);
     });
-    this->server->on("/wificonfig.html", HTTP_GET, [wifiCfg](AsyncWebServerRequest *request){
+    this->server->on("/wificonfig.html", HTTP_GET, [this](AsyncWebServerRequest *request){
         AsyncResponseStream *response = request->beginResponseStream("text/html");
         response->setCode(200);
 
         _header(response, true, "Wi-Fi Config.");
         response->print("<div class=\"position menuitem\">");
         response->print("<p>");
-        response->printf("Current SSID: %s<br/>", strlen(wifiCfg->ssid) == 0 ? "" : wifiCfg->ssid);
-        response->printf("Current Password: %.4s****<br/>", wifiCfg->password);
-        response->printf("Keep AP on: %s<br/>", wifiCfg->keep_ap_on ? "Yes" : "No");
+        response->printf("Current SSID: %s<br/>", strlen(this->wifiCfg->ssid) == 0 ? "" : this->wifiCfg->ssid);
+        response->printf("Current Password: %.4s****<br/>", this->wifiCfg->password);
+        response->printf("Keep AP on: %s<br/>", this->wifiCfg->keep_ap_on ? "Yes" : "No");
         response->printf("Status: %s</p>", WiFi.status() == WL_CONNECTED ? "Connected" : "NOT connected");
         response->print("</p>");
-        response->print("<form method=\"post\" action=\"/wifi\">");
+        response->print("<form method=\"post\" action=\"/wifi.save\">");
         response->print("<table border=\"0\">");
         response->print("<tr><td align=\"left\">SSID</td><td><input type=\"text\" name=\"ssid\" autocomplete=\"off\"></input></td></tr>");
         response->print("<tr><td align=\"left\">Password</td><td><input type=\"text\" name=\"password\" autocomplete=\"off\"></input></td></tr>");
@@ -69,15 +75,68 @@ ConfigWebServer::ConfigWebServer(DeviceConfig *deviceCfg, WifiConfig *wifiCfg) {
         
         request->send(response);
     });
+    this->server->on("/wifi.save", HTTP_POST, [this](AsyncWebServerRequest *request) {
+        Log.trace(F("Received POST to /wifi.save - reading parameters" CR));
+        String ssid = request->getParam("ssid", true)->value();
+        String pass = request->getParam("password", true)->value();
+        bool keep_on = request->hasParam("keep_ap_on") && request->getParam("keep_ap_on", true)->value() ? true : false;
+        Log.trace(F("Read POSTed parameters:" CR), ssid);
+        Log.trace(F(" > ssid: <%s>" CR), ssid);
+        Log.trace(F(" > password: <%s>" CR), pass);
+        Log.trace(F(" > keep_ap_on: <%d>" CR), keep_on);
+
+        // abort if no callback
+        if (wifiFunc == 0) {
+            Log.warning(F("No wifi callback set - nothing will be saved"));
+        } else {
+            // create new struct and call callback
+            WifiConfig cfg;
+            strcpy(cfg.ssid, ssid.c_str());
+            strcpy(cfg.password, pass.c_str());
+            cfg.keep_ap_on = keep_on;
+
+            // perform callback
+            wifiFunc(&cfg);
+        }
+
+        // redirect
+        request->redirect("/");
+    });
     this->server->on("/deviceconfig.html", HTTP_GET, [](AsyncWebServerRequest *request) {
         AsyncResponseStream *response = request->beginResponseStream("text/html");
         response->setCode(200);
 
         _header(response, true, "Device Config.");
+        response->print("<div class=\"position menuitem\">");
+        response->print("<p>");
+        response->print("</p>");
+        response->print("<form method=\"post\" action=\"/device.save\">");
+        response->print("<table border=\"0\">");
+        response->print("<tr><td align=\"left\">Foo</td><td><input type=\"text\" name=\"ssid\" autocomplete=\"off\"></input></td></tr>");
+        response->print("<tr><td colspan=\"2\" align=\"right\"><input type=\"submit\"></input></td></tr>");
+        response->print("</table>");
+        response->print("</div>");
         _footer(response);
 
         request->send(response);
     });
+    this->server->on("/device.save", HTTP_POST, [this](AsyncWebServerRequest *request) {
+        Log.trace(F("Received POST to /device.save - reading parameters" CR));
+        
+        // abort if no callback
+        if (deviceFunc == 0) {
+            Log.warning(F("No device callback set - nothing will be saved"));
+        } else {
+            DeviceConfig cfg;
+
+            // perform callback
+            deviceFunc(&cfg);
+        }
+
+        // redirect
+        request->redirect("/");
+    });
+
     this->server->on("/styles.css", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/css", "* {font-size: 14pt;}\n" \
         "a {font-weight: bold;}\n" \
@@ -89,9 +148,7 @@ ConfigWebServer::ConfigWebServer(DeviceConfig *deviceCfg, WifiConfig *wifiCfg) {
         ".menuitem {text-align: center; background-color: #efefef; cursor: pointer; border: 1px solid black;}\n" \
         ".height30 {height: 30px;}\n");
     });
-    this->server->on("/foo", HTTP_GET, [](AsyncWebServerRequest *request){
-        
-    });
+    
 
     Log.trace(F("Constructed ConfigWebServer instance - starting to accept incoming requests" CR));
     this->server->begin();

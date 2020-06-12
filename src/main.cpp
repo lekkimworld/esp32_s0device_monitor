@@ -463,6 +463,11 @@ void setup() {
     buildNetworkName(ssid);
     WiFi.softAP(ssid, "");
     server = new ConfigWebServer(&deviceCfg, &wifiCfg);
+    server->setWifiChangedCallback([](WifiConfig *wifiCfg) {
+        Log.trace(F("Received callback from ConfigWebServer - something changed WifiConfig" CR));
+        
+    });
+    server->init();
     Log.trace(F("Started AP with SSID: %s" CR), ssid);
 
     // read config

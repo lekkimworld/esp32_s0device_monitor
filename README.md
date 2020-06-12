@@ -29,16 +29,16 @@ S0- --> button left --> 4,7kOhm --> signal pin
     * SCL 22
 * RJ45 plug 1
     * Orange
-        * ISR 36
+        * ISR 35
         * LED 19
     * Brown
-        * ISR 39
+        * ISR 34
         * LED 18
     * Blue  
-        * ISR 34
+        * ISR 39
         * LED 5
     * Green
-        * ISR 35
+        * ISR 36
         * LED 17
 * RJ45 plug 2
     * Orange
