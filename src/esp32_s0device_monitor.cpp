@@ -8,6 +8,29 @@
 #include "isr.h"
 #include "credentials.h"
 
+// DST Root CA X3, https://letsencrypt.org/certs/trustid-x3-root.pem.txt
+const char* rootCACertificate_DSTRootCAX3 = \
+"-----BEGIN CERTIFICATE-----\n" \
+"MIIDSjCCAjKgAwIBAgIQRK+wgNajJ7qJMDmGLvhAazANBgkqhkiG9w0BAQUFADA/\n" \
+"MSQwIgYDVQQKExtEaWdpdGFsIFNpZ25hdHVyZSBUcnVzdCBDby4xFzAVBgNVBAMT\n" \
+"DkRTVCBSb290IENBIFgzMB4XDTAwMDkzMDIxMTIxOVoXDTIxMDkzMDE0MDExNVow\n" \
+"PzEkMCIGA1UEChMbRGlnaXRhbCBTaWduYXR1cmUgVHJ1c3QgQ28uMRcwFQYDVQQD\n" \
+"Ew5EU1QgUm9vdCBDQSBYMzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB\n" \
+"AN+v6ZdQCINXtMxiZfaQguzH0yxrMMpb7NnDfcdAwRgUi+DoM3ZJKuM/IUmTrE4O\n" \
+"rz5Iy2Xu/NMhD2XSKtkyj4zl93ewEnu1lcCJo6m67XMuegwGMoOifooUMM0RoOEq\n" \
+"OLl5CjH9UL2AZd+3UWODyOKIYepLYYHsUmu5ouJLGiifSKOeDNoJjj4XLh7dIN9b\n" \
+"xiqKqy69cK3FCxolkHRyxXtqqzTWMIn/5WgTe1QLyNau7Fqckh49ZLOMxt+/yUFw\n" \
+"7BZy1SbsOFU5Q9D8/RhcQPGX69Wam40dutolucbY38EVAjqr2m7xPi71XAicPNaD\n" \
+"aeQQmxkqtilX4+U9m5/wAl0CAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAOBgNV\n" \
+"HQ8BAf8EBAMCAQYwHQYDVR0OBBYEFMSnsaR7LHH62+FLkHX/xBVghYkQMA0GCSqG\n" \
+"SIb3DQEBBQUAA4IBAQCjGiybFwBcqR7uKGY3Or+Dxz9LwwmglSBd49lZRNI+DT69\n" \
+"ikugdB/OEIKcdBodfpga3csTS7MgROSR6cz8faXbauX+5v3gTt23ADq1cEmv8uXr\n" \
+"AvHRAosZy5Q6XkjEGB5YGV8eAlrwDPGxrancWYaLbumR9YbK+rlmM6pZW87ipxZz\n" \
+"R8srzJmwN0jP41ZL9c8PDHIyh8bwRLtTcm1D9SZImlJnt1ir/md2cXjbDaJWFBM5\n" \
+"JDGFoqgCWjBH4d1QB7wCCZAA62RjYJsWvIjJEubSfZGL+T0yjWW06XyxV3bqxbYo\n" \
+"Ob8VZRzI9neWagqNdwvYkQsEjgfbKbYK7p2CNTUQ\n" \
+"-----END CERTIFICATE-----\n";
+
 // Let's Encrypt, SRG Root X1 (self-signed), https://letsencrypt.org/certs/isrgrootx1.pem.txt
 const char* rootCACertificate_LetsEncrypt = \
 "-----BEGIN CERTIFICATE-----\n" \
@@ -41,6 +64,7 @@ const char* rootCACertificate_LetsEncrypt = \
 "mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d\n" \
 "emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=\n" \
 "-----END CERTIFICATE-----\n";
+
 // DigiCert High Assurance EV Root CA, https://www.digicert.com/digicert-root-certificates.htm
 const char* rootCACertificate_Digicert = \
 "-----BEGIN CERTIFICATE-----\n" \
@@ -66,7 +90,7 @@ const char* rootCACertificate_Digicert = \
 "vEsXCS+0yx5DaMkHJ8HSXPfqIbloEpw8nL+e/IBcm2PN7EeqJSdnoDfzAIJ9VNep\n" \
 "+OkuE6N36B9K\n" \
 "-----END CERTIFICATE-----\n";
-const char* rootCACertificate = rootCACertificate_Digicert;
+const char* rootCACertificate = rootCACertificate_DSTRootCAX3;
 
 // declaration
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
@@ -78,7 +102,7 @@ unsigned long samplePeriodStart = 0;
 bool justReset = true;
 
 bool hasWebEndpoint() {
-  return strlen(ENDPOINT_URL) > 0;
+  return strlen(MY_ENDPOINT_URL) > 0;
 }
 
 void updateDisplay() {
@@ -155,7 +179,7 @@ int httpPostData(char *data) {
   char str_contentLength[5];
   sprintf (str_contentLength, "%4i", contentLength);
   char bufferAuthHeader[400];
-  sprintf(bufferAuthHeader, "Bearer %s", DEVICE_JWT);
+  sprintf(bufferAuthHeader, "Bearer %s", MY_DEVICE_JWT);
 
   WiFiClientSecure *client = new WiFiClientSecure;
   if(client) {
@@ -165,7 +189,7 @@ int httpPostData(char *data) {
       HTTPClient https;
   
       Serial.print("[HTTPS] begin...\n");
-      if (https.begin(*client, ENDPOINT_URL)) {
+      if (https.begin(*client, MY_ENDPOINT_URL)) {
         // start connection and send HTTP headers
         Serial.print("[HTTPS] POST...\n");
         https.addHeader("Authorization", bufferAuthHeader);
@@ -316,7 +340,7 @@ void setup() {
   initDisplay();
 
   // init wifi
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  WiFi.begin(MY_WIFI_SSID, MY_WIFI_PASS);
   int wifiDelayCount = 0;
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
@@ -330,8 +354,8 @@ void setup() {
   printMacAddress();
 
   // setup plugs and connections per plug
-  strcpy(plugs[0].name, "Primary RJ45");
-  strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].name, "tumbler (Or)   : %d");
+  strcpy(plugs[0].name, "Yellow RJ45");
+  strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].name, "Tumbler (Or)   : %d");
   strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].id,   "s0dryer");
   strcpy(plugs[0].devices[DEVICE_IDX_BROWN].name,  "Vaskemask. (Br): %d");
   strcpy(plugs[0].devices[DEVICE_IDX_BROWN].id,    "s0washer");
@@ -341,9 +365,10 @@ void setup() {
   strcpy(plugs[0].devices[DEVICE_IDX_BLUE].id,     "s0heatpump");
   plugs[0].activeDevices = 4;
 
-  strcpy(plugs[1].name, "Secondary RJ45");
-  strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].name, "Foo (Or)       : %d");
-  plugs[1].activeDevices = 0;
+  strcpy(plugs[1].name, "White RJ45");
+  strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].name, "Gulvvame, bad  : %d");
+  strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].id,   "s0floorheat");
+  plugs[1].activeDevices = 1;
 
   Serial.println("Initializing pins");
   initISR();
