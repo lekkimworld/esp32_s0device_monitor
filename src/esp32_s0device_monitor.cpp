@@ -5,6 +5,8 @@
 #include <Adafruit_SSD1306.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <WiFiUdp.h>
+#include <Syslog.h>
 #include "isr.h"
 #include "credentials.h"
 
@@ -101,6 +103,31 @@ unsigned long SAMPLE_DURATION = 2 * 60 * 1000;
 unsigned long samplePeriodStart = 0;
 bool justReset = true;
 
+// Create a new syslog instance with LOG_KERN facility
+WiFiUDP udpClient;
+Syslog syslog(udpClient, SYSLOG_SERVER, SYSLOG_PORT, DEVICE_HOSTNAME, APP_NAME, LOG_KERN);
+
+void S0_LOG_DEBUG(const char* msg, ...) {
+  va_list args; 
+  Serial.print("[DEBUG] - "); 
+  Serial.println(msg); 
+  syslog.logf(LOG_KERN, msg, args); 
+}
+
+void S0_LOG_INFO(const char* msg, ...) {
+  va_list args; 
+  Serial.print(" [INFO] - "); 
+  Serial.println(msg); 
+  syslog.logf(LOG_INFO, msg, args); 
+}
+
+void S0_LOG_ERROR(const char* msg, ...) {
+  va_list args; 
+  Serial.print("[ERROR] - "); 
+  Serial.println(msg); 
+  syslog.logf(LOG_ERR, msg, args); 
+}
+
 bool hasWebEndpoint() {
   return strlen(MY_ENDPOINT_URL) > 0;
 }
@@ -188,10 +215,10 @@ int httpPostData(char *data) {
       // Add a scoping block for HTTPClient https to make sure it is destroyed before WiFiClientSecure *client is 
       HTTPClient https;
   
-      Serial.print("[HTTPS] begin...\n");
+      S0_LOG_DEBUG("[HTTPS] begin...");
       if (https.begin(*client, MY_ENDPOINT_URL)) {
         // start connection and send HTTP headers
-        Serial.print("[HTTPS] POST...\n");
+        S0_LOG_DEBUG("[HTTPS] POST...");
         https.addHeader("Authorization", bufferAuthHeader);
         https.addHeader("Content-Type", "application/json");
         https.addHeader("Accept", "application/json");
@@ -203,20 +230,20 @@ int httpPostData(char *data) {
         // httpCode will be negative on error
         if (httpCode > 0) {
           // HTTP header has been send and Server response header has been handled
-          Serial.printf("[HTTPS] POST... code: %d\n", httpCode);
+          S0_LOG_DEBUG("[HTTPS] POST... code: %d", httpCode);
   
           // file found at server
           if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
             String payload = https.getString();
-            Serial.println(payload);
+            S0_LOG_DEBUG(payload.c_str());
           }
         } else {
-          Serial.printf("[HTTPS] POST... failed, error: %s\n", https.errorToString(httpCode).c_str());
+          S0_LOG_ERROR("[HTTPS] POST... failed, error: %s", https.errorToString(httpCode).c_str());
         }
   
         https.end();
       } else {
-        Serial.printf("[HTTPS] Unable to connect\n");
+        S0_LOG_ERROR("[HTTPS] Unable to connect\n");
       }
 
       // End extra scoping block
@@ -226,7 +253,7 @@ int httpPostData(char *data) {
     return 1;
 
   } else {
-    Serial.println("Unable to create client");
+    S0_LOG_ERROR("Unable to create client");
     return 0;
   }
 }
@@ -254,13 +281,11 @@ void printMacAddress() {
   // print MAC address
   char buf[20];
   getMacAddressString(buf);
-  Serial.print("MAC address: ");
-  Serial.println(buf);
+  S0_LOG_INFO("MAC address: %s", buf);
 }
 
 void printIPAddress() {
-  Serial.print("Received IP: ");
-  Serial.println(WiFi.localIP());
+  S0_LOG_INFO("Received IP: %s", WiFi.localIP().toString().c_str());
 }
 
 void prepareDataPayload(char *jsonBuffer, size_t size, RJ45 *workPlugs, unsigned long sampleDuration) {
@@ -290,7 +315,6 @@ void prepareDataPayload(char *jsonBuffer, size_t size, RJ45 *workPlugs, unsigned
   
   // serialize
   serializeJson(doc, jsonBuffer, size);
-  Serial.println(jsonBuffer);
 }
 
 void prepareControlRestartPayload(char *jsonBuffer, size_t size) {
@@ -334,7 +358,7 @@ void setup() {
   // setup serial and init display
   Serial.begin(115200);
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
-    Serial.println(F("SSD1306 display allocation failed"));
+    S0_LOG_ERROR("SSD1306 display allocation failed");
     for(;;);
   }
   initDisplay();
@@ -348,7 +372,7 @@ void setup() {
     char buffer[64];
     sprintf(buffer, "Initializing wifi (%d)", wifiDelayCount);
     writeDisplay(buffer);
-    Serial.println(buffer);
+    S0_LOG_INFO(buffer);
   }
   printIPAddress();
   printMacAddress();
@@ -370,7 +394,7 @@ void setup() {
   strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].id,   "s0floorheat");
   plugs[1].activeDevices = 1;
 
-  Serial.println("Initializing pins");
+  S0_LOG_INFO("Initializing pins");
   initISR();
   initS0Pins();
   samplePeriodStart = millis();
@@ -411,7 +435,11 @@ void loop() {
   if (shouldUpdateDisplay) updateDisplay();
 
   if (now - samplePeriodStart > SAMPLE_DURATION) {
-    Serial.println("Will post to server...");
+    S0_LOG_INFO("Will post to server...");
+    
+    // keep track of when we last sent data
+    samplePeriodStart = now;
+    S0_LOG_DEBUG("Set timestamp samplePeriodStart to now");
     
     // copy S0Device structs
     RJ45 plugs_copy[RJ45_PLUG_COUNT];
@@ -423,13 +451,14 @@ void loop() {
         plugs_copy[i].devices[j].isr = 0;
       }
     }
+    S0_LOG_DEBUG("Made memory copy of data structs");
 
     // prepare payload
     char payload[2048];
     prepareDataPayload(payload, sizeof(payload), plugs_copy, SAMPLE_DURATION);
+    S0_LOG_DEBUG("Prepared payload");
+
     httpPostData(payload);
-    
-    // keep track of when we last sent data
-    samplePeriodStart = now;
+    S0_LOG_DEBUG("Done attempting to send payload");
   }
 }
