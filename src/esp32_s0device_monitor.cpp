@@ -107,25 +107,22 @@ bool justReset = true;
 WiFiUDP udpClient;
 Syslog syslog(udpClient, SYSLOG_SERVER, SYSLOG_PORT, DEVICE_HOSTNAME, APP_NAME, LOG_KERN);
 
-void S0_LOG_DEBUG(const char* msg, ...) {
-  va_list args; 
-  Serial.print("[DEBUG] - "); 
-  Serial.println(msg); 
-  syslog.logf(LOG_KERN, msg, args); 
+template<typename... Args>
+void S0_LOG_DEBUG(const char* msg, Args... args) {
+  printf(msg, args...);
+  syslog.logf(LOG_KERN, msg, args...); 
 }
 
-void S0_LOG_INFO(const char* msg, ...) {
-  va_list args; 
-  Serial.print(" [INFO] - "); 
-  Serial.println(msg); 
-  syslog.logf(LOG_INFO, msg, args); 
+template<typename... Args>
+void S0_LOG_INFO(const char* msg, Args... args) {
+  printf(msg, args...);
+  syslog.logf(LOG_INFO, msg, args...); 
 }
 
-void S0_LOG_ERROR(const char* msg, ...) {
-  va_list args; 
-  Serial.print("[ERROR] - "); 
-  Serial.println(msg); 
-  syslog.logf(LOG_ERR, msg, args); 
+template<typename... Args>
+void S0_LOG_ERROR(const char* msg, Args... args) {
+  printf(msg, args...);
+  syslog.logf(LOG_ERR, msg, args...); 
 }
 
 bool hasWebEndpoint() {
@@ -207,25 +204,30 @@ int httpPostData(char *data) {
   sprintf (str_contentLength, "%4i", contentLength);
   char bufferAuthHeader[400];
   sprintf(bufferAuthHeader, "Bearer %s", MY_DEVICE_JWT);
+  S0_LOG_DEBUG("Free heap: %d", ESP.getFreeHeap());
 
   WiFiClientSecure *client = new WiFiClientSecure;
-  if(client) {
+  if (client) {
     client -> setCACert(rootCACertificate);
     {
       // Add a scoping block for HTTPClient https to make sure it is destroyed before WiFiClientSecure *client is 
       HTTPClient https;
+      S0_LOG_DEBUG("Free heap: %d", ESP.getFreeHeap());
   
       S0_LOG_DEBUG("[HTTPS] begin...");
       if (https.begin(*client, MY_ENDPOINT_URL)) {
         // start connection and send HTTP headers
-        S0_LOG_DEBUG("[HTTPS] POST...");
+        S0_LOG_DEBUG("[HTTPS] Sending headers...");
         https.addHeader("Authorization", bufferAuthHeader);
         https.addHeader("Content-Type", "application/json");
         https.addHeader("Accept", "application/json");
         https.addHeader("Content-Length", str_contentLength);
 
         // do post
+        S0_LOG_DEBUG("[HTTPS] POSTing data");
         int httpCode = https.POST(data);
+        S0_LOG_DEBUG("[HTTPS] Called https.POST - httpCode: %d", httpCode);
+        S0_LOG_DEBUG("Free heap: %d", ESP.getFreeHeap());
   
         // httpCode will be negative on error
         if (httpCode > 0) {
@@ -235,10 +237,10 @@ int httpPostData(char *data) {
           // file found at server
           if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
             String payload = https.getString();
-            S0_LOG_DEBUG(payload.c_str());
+            S0_LOG_DEBUG("[HTTPS] Received response: %s", payload.c_str());
           }
         } else {
-          S0_LOG_ERROR("[HTTPS] POST... failed, error: %s", https.errorToString(httpCode).c_str());
+          S0_LOG_ERROR("[HTTPS] https.POST failed, code: %d, error: %s", httpCode, https.errorToString(httpCode).c_str());
         }
   
         https.end();
@@ -248,7 +250,8 @@ int httpPostData(char *data) {
 
       // End extra scoping block
     }
-  
+    S0_LOG_DEBUG("Free heap: %d", ESP.getFreeHeap());
+
     delete client;
     return 1;
 
@@ -357,6 +360,7 @@ void pingServerOnStart() {
 void setup() {
   // setup serial and init display
   Serial.begin(115200);
+
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
     S0_LOG_ERROR("SSD1306 display allocation failed");
     for(;;);
