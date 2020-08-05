@@ -109,19 +109,25 @@ Syslog syslog(udpClient, SYSLOG_SERVER, SYSLOG_PORT, DEVICE_HOSTNAME, APP_NAME, 
 
 template<typename... Args>
 void S0_LOG_DEBUG(const char* msg, Args... args) {
-  printf(msg, args...);
+  Serial.print("[DEBUG] - ");
+  Serial.printf(msg, args...);
+  Serial.println();
   syslog.logf(LOG_KERN, msg, args...); 
 }
 
 template<typename... Args>
 void S0_LOG_INFO(const char* msg, Args... args) {
-  printf(msg, args...);
+  Serial.print(" [INFO] - ");
+  Serial.printf(msg, args...);
+  Serial.println();
   syslog.logf(LOG_INFO, msg, args...); 
 }
 
 template<typename... Args>
 void S0_LOG_ERROR(const char* msg, Args... args) {
-  printf(msg, args...);
+  Serial.print("[ERROR] - ");
+  Serial.printf(msg, args...);
+  Serial.println();
   syslog.logf(LOG_ERR, msg, args...); 
 }
 
