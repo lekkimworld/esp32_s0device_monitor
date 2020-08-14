@@ -92,7 +92,7 @@ const char* rootCACertificate_Digicert = \
 "vEsXCS+0yx5DaMkHJ8HSXPfqIbloEpw8nL+e/IBcm2PN7EeqJSdnoDfzAIJ9VNep\n" \
 "+OkuE6N36B9K\n" \
 "-----END CERTIFICATE-----\n";
-const char* rootCACertificate = rootCACertificate_DSTRootCAX3;
+const char* rootCACertificate = rootCACertificate_Digicert;
 
 // declaration
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
@@ -102,17 +102,19 @@ int page = 0;
 unsigned long SAMPLE_DURATION = 2 * 60 * 1000;
 unsigned long samplePeriodStart = 0;
 bool justReset = true;
+bool useDisplay = false;
 
 // Create a new syslog instance with LOG_KERN facility
 WiFiUDP udpClient;
 Syslog syslog(udpClient, SYSLOG_SERVER, SYSLOG_PORT, DEVICE_HOSTNAME, APP_NAME, LOG_KERN);
+bool hasSyslog();
 
 template<typename... Args>
 void S0_LOG_DEBUG(const char* msg, Args... args) {
   Serial.print("[DEBUG] - ");
   Serial.printf(msg, args...);
   Serial.println();
-  syslog.logf(LOG_KERN, msg, args...); 
+  if (hasSyslog()) syslog.logf(LOG_KERN, msg, args...); 
 }
 
 template<typename... Args>
@@ -120,7 +122,7 @@ void S0_LOG_INFO(const char* msg, Args... args) {
   Serial.print(" [INFO] - ");
   Serial.printf(msg, args...);
   Serial.println();
-  syslog.logf(LOG_INFO, msg, args...); 
+  if (hasSyslog()) syslog.logf(LOG_INFO, msg, args...); 
 }
 
 template<typename... Args>
@@ -128,7 +130,11 @@ void S0_LOG_ERROR(const char* msg, Args... args) {
   Serial.print("[ERROR] - ");
   Serial.printf(msg, args...);
   Serial.println();
-  syslog.logf(LOG_ERR, msg, args...); 
+  if (hasSyslog())  syslog.logf(LOG_ERR, msg, args...); 
+}
+
+bool hasSyslog() {
+  return strlen(SYSLOG_SERVER) > 0;
 }
 
 bool hasWebEndpoint() {
@@ -136,6 +142,8 @@ bool hasWebEndpoint() {
 }
 
 void updateDisplay() {
+  if (!useDisplay) return; 
+  
   char buffer[24];
   display.clearDisplay();
   int y = 10;
@@ -160,6 +168,8 @@ void updateDisplay() {
 }
 
 void writeDisplay(char *buffer) {
+  if (!useDisplay) return;
+
   display.setCursor(0, 10);
   display.clearDisplay();
   display.println(buffer);
@@ -167,6 +177,16 @@ void writeDisplay(char *buffer) {
 }
 
 void initDisplay() {
+  if (!useDisplay) {
+    S0_LOG_INFO("Not initializing display as useDisplay=false");
+    return;
+  }
+
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
+    S0_LOG_ERROR("SSD1306 display allocation failed");
+    for(;;);
+  }
+
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(WHITE);
@@ -366,11 +386,8 @@ void pingServerOnStart() {
 void setup() {
   // setup serial and init display
   Serial.begin(115200);
-
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
-    S0_LOG_ERROR("SSD1306 display allocation failed");
-    for(;;);
-  }
+  
+  // init the display
   initDisplay();
 
   // init wifi
