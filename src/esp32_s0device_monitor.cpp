@@ -407,19 +407,25 @@ void setup() {
   // setup plugs and connections per plug
   strcpy(plugs[0].name, "Yellow RJ45");
   strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].name, "Tumbler (Or)   : %d");
-  strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].id,   "s0dryer");
+  strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].id,   "P0D0"); //"s0dryer");
   strcpy(plugs[0].devices[DEVICE_IDX_BROWN].name,  "Vaskemask. (Br): %d");
-  strcpy(plugs[0].devices[DEVICE_IDX_BROWN].id,    "s0washer");
+  strcpy(plugs[0].devices[DEVICE_IDX_BROWN].id,    "P0D1"); //"s0washer");
   strcpy(plugs[0].devices[DEVICE_IDX_GREEN].name,  "Opvask. (Gr)   : %d");
-  strcpy(plugs[0].devices[DEVICE_IDX_GREEN].id,    "s0dishwasher");
+  strcpy(plugs[0].devices[DEVICE_IDX_GREEN].id,    "P0D2"); //"s0dishwasher");
   strcpy(plugs[0].devices[DEVICE_IDX_BLUE].name,   "Varmepumpe (Bl): %d");
-  strcpy(plugs[0].devices[DEVICE_IDX_BLUE].id,     "s0heatpump");
+  strcpy(plugs[0].devices[DEVICE_IDX_BLUE].id,     "P0D3"); //"s0heatpump");
   plugs[0].activeDevices = 4;
 
   strcpy(plugs[1].name, "White RJ45");
   strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].name, "Gulvvame, bad  : %d");
-  strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].id,   "s0floorheat");
-  plugs[1].activeDevices = 1;
+  strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].id,   "P1D0"); //"s0floorheat");
+  strcpy(plugs[1].devices[DEVICE_IDX_BROWN].name, "Gulvvame, bad  : %d");
+  strcpy(plugs[1].devices[DEVICE_IDX_BROWN].id,   "P1D1"); //"s0floorheat");
+  strcpy(plugs[1].devices[DEVICE_IDX_GREEN].name, "Gulvvame, bad  : %d");
+  strcpy(plugs[1].devices[DEVICE_IDX_GREEN].id,   "P1D2"); //"s0floorheat");
+  strcpy(plugs[1].devices[DEVICE_IDX_BLUE].name, "Gulvvame, bad  : %d");
+  strcpy(plugs[1].devices[DEVICE_IDX_BLUE].id,   "P1D3"); //"s0floorheat");
+  plugs[1].activeDevices = 4;
 
   S0_LOG_INFO("Initializing pins");
   initISR();
