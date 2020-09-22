@@ -1,2 +1,2 @@
-#define VERSION_NUMBER "20200529T0920"
-#define VERSION_LASTCHANGE "Working on web config ui"
+#define VERSION_NUMBER "20200921T1810"
+#define VERSION_LASTCHANGE "Combining master and pcb branches"

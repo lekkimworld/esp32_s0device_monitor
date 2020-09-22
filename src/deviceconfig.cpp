@@ -29,6 +29,10 @@ void ConfigWebServer::setWifiChangedCallback(WifiConfigChangedCallback wifiFunc)
     this->wifiFunc = wifiFunc;
 }
 
+void ConfigWebServer::setDeviceChangedCallback(DeviceConfigChangedCallback deviceFunc) {
+    this->deviceFunc = deviceFunc;
+}
+
 void ConfigWebServer::init() {
     // create server
     this->server = new AsyncWebServer(80);

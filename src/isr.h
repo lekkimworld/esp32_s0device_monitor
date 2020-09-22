@@ -1,7 +1,5 @@
 #include "types.h"
 
-RJ45 plugs[2];
-
 void isr_worker(S0Device *device) {
   if ((millis() - device->lastTrigger) < DEBOUNCE_TIME) return;
   digitalWrite(device->pinLED, HIGH);
@@ -50,7 +48,7 @@ void IRAM_ATTR isr_plug1_blue() {
   isr_worker(device);
 }
 
-void initISR() {
+void initializeISR() {
   plugs[0].devices[DEVICE_IDX_ORANGE].pinIRQ = 35;
   plugs[0].devices[DEVICE_IDX_ORANGE].pinLED = 15;
   plugs[0].devices[DEVICE_IDX_ORANGE].isr = isr_plug0_orange;

@@ -43,9 +43,13 @@ typedef struct {
 #define CONFIGURATION_VERSION 1
 typedef struct {
   uint8_t version = CONFIGURATION_VERSION;
+  bool productionCert = false;
   char endpoint[64] = "";
   char jwt[512] = "";
   unsigned long delay_post = 0L;
+  char syslog_server[512] = "";
+  uint16_t syslog_port = 514;
+
 } DeviceConfig;
 
 // define struct to hold wifi configuration
