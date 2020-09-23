@@ -17,10 +17,10 @@ int getRJ45ConfigOffset_Plug0() {
     return getWifiConfigOffset() + sizeof(WifiConfig);
 }
 
-int writeConfiguration(WifiConfig *wifiCfg) {
+int writeConfiguration(WifiConfig *cfg) {
     // ensure config version is set
     int offset = getDeviceConfigOffset();
-    if (true || deviceCfg.version != CONFIGURATION_VERSION) {
+    if (deviceCfg.version != CONFIGURATION_VERSION) {
         deviceCfg.version = CONFIGURATION_VERSION;
         strcpy(deviceCfg.jwt, "");
         strcpy(deviceCfg.endpoint, "");
@@ -59,13 +59,32 @@ int writeConfiguration(WifiConfig *wifiCfg) {
     // write wifi config
     offset = getWifiConfigOffset();
     WifiConfig newCfg;
-    newCfg.keep_ap_on = wifiCfg->keep_ap_on;
-    strcpy(newCfg.ssid, wifiCfg->ssid);
-    strcpy(newCfg.password, wifiCfg->password);
+    newCfg.keep_ap_on = cfg->keep_ap_on;
+    strcpy(newCfg.ssid, cfg->ssid);
+    strcpy(newCfg.password, cfg->password);
     EEPROM.put(offset, newCfg);
 
     // move pointer
-    wifiCfg = &newCfg;
+    wifiCfg = newCfg;
+
+    // save and return
+    EEPROM.commit();
+    return 0;
+}
+
+int writeConfiguration(DeviceConfig *cfg) {
+    int offset = getDeviceConfigOffset();
+
+    DeviceConfig newCfg;
+    strcpy(newCfg.endpoint, cfg->endpoint);
+    strcpy(newCfg.jwt, cfg->jwt);
+    newCfg.delay_post = cfg->delay_post;
+    newCfg.productionCert = cfg->productionCert;
+    newCfg.useDisplay = cfg->useDisplay;
+    EEPROM.put(offset, newCfg);
+
+    // move pointer
+    deviceCfg = newCfg;
 
     // save and return
     EEPROM.commit();
@@ -86,7 +105,7 @@ int readConfiguration() {
 
     // read device config
     EEPROM.get(getDeviceConfigOffset(), deviceCfg);
-
+    
     // validate config
     if (deviceCfg.version != CONFIGURATION_VERSION) {
         // not a valid config
@@ -99,7 +118,7 @@ int readConfiguration() {
     S0_LOG_DEBUG("JWT             : %s", deviceCfg.jwt);
     S0_LOG_DEBUG("Syslog server   : %s", deviceCfg.syslog_server);
     S0_LOG_DEBUG("Syslog port     : %d", deviceCfg.syslog_port);
-    S0_LOG_DEBUG("Delay post      : %l", deviceCfg.delay_post);
+    S0_LOG_DEBUG("Delay post      : %u", deviceCfg.delay_post);
 
     // read wifi config
     EEPROM.get(getWifiConfigOffset(), wifiCfg);

@@ -1,0 +1,6 @@
+{
+    "ssid": "foo",
+    "password": "bar****",
+    "keep_ap_on": true,
+    "status": "Connected"
+}

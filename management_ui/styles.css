@@ -14,11 +14,17 @@ table {
 }
 
 .position {
-    width: 60%;
+    margin-left: 10px;
+    margin-right: 10px;
     margin-bottom: 10px;
     position: relative;
     margin-left: auto;
     margin-right: auto;
+}
+
+.existing {
+    margin-left: 10px;
+    margin-right: 10px;
 }
 
 .title {
@@ -35,6 +41,14 @@ table {
     font-size: 10pt;
     font-style: italic;
     display: block;
+}
+
+.align-center {
+    text-align: center;
+}
+
+.align-left {
+    text-align: left;
 }
 
 .menuitem {

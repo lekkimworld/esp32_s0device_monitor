@@ -14,7 +14,10 @@
 
     <div class="position menuitem">
         <p>
-            Current SSID: %s<br/> Current Password: <br/> Keep AP on: <br/> Status: %s
+            <div class="existing align-left">Current SSID: <span id="ssid"></span></div>
+            <div class="existing align-left">Current Password: <span id="password"></span></div>
+            <div class="existing align-left">Keep AP on: <span id="keep_ap_on"></span></div>
+            <div class="existing align-left">Status: <span id="status"></span></div>
         </p>
         </p>
         <form method="post">
@@ -26,16 +29,16 @@
                 </tr>
                 <tr>
                     <td align="left">Password</td>
-                    <td><input type="text" name="password" autocomplete="off"></input>
+                    <td><input type="text" name="password" id="password" autocomplete="off"></input>
                     </td>
                 </tr>
                 <tr>
                     <td align="left">Keep AP on</td>
-                    <td><input type="checkbox" name="keep_ap_on" value="1"></input>
+                    <td><input type="checkbox" name="keep_ap_on" id="keep_ap_on" value="1"></input>
                     </td>
                 </tr>
                 <tr>
-                    <td colspan="2" align="right"><button type="button" rel="wifi.save">Save</button>
+                    <td colspan="2" align="right"><button type="button" rel="wificonfig">Save</button>
                     </td>
                 </tr>
             </table>

@@ -6,14 +6,32 @@ window.onload = () => {
     })
 
     document.querySelectorAll("button").forEach(btn => {
+        // get rel
+        const rel = btn.getAttribute("rel");
+        if (!rel) return;
+
+        // load existing data
+        fetch(`/${rel}.json`).then(res => res.json()).then(data => {
+            Object.keys(data).forEach(key => {
+                const elem = document.getElementById(key);
+                elem.innerText = data[key];
+            })
+        })
+
+        // add click listener
         btn.addEventListener("click", ev => {
-            const rel = ev.target.getAttribute("rel");
-            if (!rel) return;
             const body = {}
             document.querySelectorAll("input").forEach(i => {
-                body[i.name] = i.type === "checkbox" ? i.checked : i.value;
+                if (i.getAttribute("s0type") === "number") {
+                    body[i.name] = Number.parseInt(i.value);
+                } else if (i.type === "checkbox") {
+                    body[i.name] = i.checked;
+                } else {
+                    body[i.name] = i.value;
+                }
+
             })
-            fetch(`./${rel}`, {
+            fetch(`/${rel}.save`, {
                 "method": "post",
                 "headers": {
                     "Content-Type": "application/json"

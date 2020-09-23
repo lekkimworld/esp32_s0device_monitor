@@ -7,21 +7,6 @@
 
 DeviceConfig *_deviceCfg;
 
-void _header(AsyncResponseStream *response, bool back, const char* title) {
-    response->println("<!DOCTYPE html><html><head>" \
-        "<meta name=\"viewport\" content=\"initial-scale=1.0\">" \
-        "<title>S0Monitor</title>" \
-        "<link rel=\"stylesheet\" href=\"/styles.css\">" \
-        "</head>" \
-        "<body>");
-    if (back) response->println("<div class=\"position\"><a href=\"./\">Back</a></div>");
-    response->printf("<div class=\"position title\">%s</div>", title);
-}
-void _footer(AsyncResponseStream *response) {
-    response->printf("<div class=\"position footer right\">%s<br/>%s</div>", VERSION_NUMBER, VERSION_LASTCHANGE);
-    response->println("</body></html>");
-}
-
 ConfigWebServer::ConfigWebServer(DeviceConfig *deviceCfg, WifiConfig *wifiCfg) {
     S0_LOG_DEBUG("Constructing ConfigWebServer instance");
     this->deviceCfg = deviceCfg;
@@ -55,13 +40,28 @@ void ConfigWebServer::init() {
     this->server->on("/wificonfig.html", HTTP_GET, [this](AsyncWebServerRequest *request){
         request->send(SPIFFS, "/wificonfig.html");
     });
+    this->server->on("/wificonfig.json", HTTP_GET, [this](AsyncWebServerRequest *request){
+        char passbuf[10];
+        sprintf(passbuf, "%.4s****", wifiCfg->password);
 
-    AsyncCallbackJsonWebHandler* handler = new AsyncCallbackJsonWebHandler("/wifi.save", [this](AsyncWebServerRequest *request, JsonVariant &json) {
+        StaticJsonDocument<256> doc;
+        doc["ssid"].set(wifiCfg->ssid);
+        doc["password"].set(passbuf);
+        doc["keep_ap_on"].set(wifiCfg->keep_ap_on);;
+        doc["status"].set(WiFi.status() == WL_CONNECTED ? "Connected" : "NOT connected");
+
+        AsyncResponseStream *response = request->beginResponseStream("application/json");
+        serializeJson(doc, *response);
+        
+        request->send(response);
+    });
+
+    AsyncCallbackJsonWebHandler* wifiHandler = new AsyncCallbackJsonWebHandler("/wificonfig.save", [this](AsyncWebServerRequest *request, JsonVariant &json) {
         // get data
         JsonObject jsonObj = json.as<JsonObject>();
         const char *ssid = jsonObj["ssid"];
         const char *pass = jsonObj["password"];
-        const bool keep_on = jsonObj["keep_ap_on"];
+        const bool keep_on = jsonObj["keep_ap_on"].as<bool>();
         S0_LOG_DEBUG("Read POSTed parameters:");
         S0_LOG_DEBUG(" > ssid: <%s>", ssid);
         S0_LOG_DEBUG(" > password: <%s>", pass);
@@ -97,46 +97,97 @@ void ConfigWebServer::init() {
             response->println("{\"status\": \"error\", \"message\": \"no callback present\"}");
         }
         request->send(response);
+        S0_LOG_DEBUG("Sent response to caller");
 
         // restart if callback returned 0
-        if (!rc) ESP.restart();
+        if (!rc) {
+            ESP.restart();
+            // restart() doesn't always end execution
+            while (true) {
+                yield();
+            }
+        }
     });
-    this->server->addHandler(handler);
+    this->server->addHandler(wifiHandler);
 
     this->server->on("/deviceconfig.html", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncResponseStream *response = request->beginResponseStream("text/html");
-        response->setCode(200);
+        request->send(SPIFFS, "/deviceconfig.html");
+    });
+    this->server->on("/deviceconfig.json", HTTP_GET, [this](AsyncWebServerRequest *request){
+        char jwtbuf[10];
+        sprintf(jwtbuf, "%.10s****", deviceCfg->jwt);
 
-        _header(response, true, "Device Config.");
-        response->print("<div class=\"position menuitem\">");
-        response->print("<p>");
-        response->print("</p>");
-        response->print("<form method=\"post\" action=\"/device.save\">");
-        response->print("<table border=\"0\">");
-        response->print("<tr><td align=\"left\">Foo</td><td><input type=\"text\" name=\"ssid\" autocomplete=\"off\"></input></td></tr>");
-        response->print("<tr><td colspan=\"2\" align=\"right\"><input type=\"submit\"></input></td></tr>");
-        response->print("</table>");
-        response->print("</div>");
-        _footer(response);
+        StaticJsonDocument<256> doc;
+        doc["delay_post"].set(deviceCfg->delay_post);
+        doc["endpoint"].set(deviceCfg->endpoint);
+        doc["jwt"].set(jwtbuf);
+        doc["prod_cert"].set(deviceCfg->productionCert);
+        doc["use_display"].set(deviceCfg->useDisplay);
 
+        AsyncResponseStream *response = request->beginResponseStream("application/json");
+        serializeJson(doc, *response);
+        
         request->send(response);
     });
-    this->server->on("/device.save", HTTP_POST, [this](AsyncWebServerRequest *request) {
-        S0_LOG_DEBUG("Received POST to /device.save - reading parameters");
-        
+    AsyncCallbackJsonWebHandler* deviceHandler = new AsyncCallbackJsonWebHandler("/deviceconfig.save", [this](AsyncWebServerRequest *request, JsonVariant &json) {
+        // get data
+        JsonObject jsonObj = json.as<JsonObject>();
+        const int delay_post = jsonObj["delay_post"].as<int>();
+        const char *endpoint = jsonObj["endpoint"];
+        const char *jwt = jsonObj["jwt"];
+        const bool prod_cert = jsonObj["prod_cert"].as<bool>();
+        const bool use_display = jsonObj["use_display"].as<bool>();
+        S0_LOG_DEBUG("Read POSTed parameters:");
+        S0_LOG_DEBUG(" > delay_post: <%u>", delay_post);
+        S0_LOG_DEBUG(" > endpoint: <%s>", endpoint);
+        S0_LOG_DEBUG(" > jwt: <%s>", jwt);
+        S0_LOG_DEBUG(" > prod_cert: <%d>", prod_cert);
+        S0_LOG_DEBUG(" > use_display: <%d>", use_display);
+
         // abort if no callback
-        if (deviceFunc == 0) {
+        bool didSave = false;
+        int rc = 0;
+        if (this->deviceFunc == 0) {
             S0_LOG_ERROR("No device callback set - nothing will be saved");
         } else {
+            // create new struct and call callback
+            S0_LOG_INFO("Device callback set - prepping data for callback");
             DeviceConfig cfg;
+            cfg.delay_post = delay_post;
+            strcpy(cfg.endpoint, endpoint);
+            strcpy(cfg.jwt, jwt);
+            cfg.productionCert = prod_cert;
+            cfg.useDisplay = use_display;
 
             // perform callback
-            deviceFunc(&cfg);
+            S0_LOG_DEBUG("Calling device callback");
+            rc = this->deviceFunc(&cfg);
+            didSave = true;
+            S0_LOG_DEBUG("Returned from device callback");
         }
+        
+        // send response
+        S0_LOG_DEBUG("Sending response to caller");
+        AsyncResponseStream *response = request->beginResponseStream("application/json");
+        response->setCode(200);
+        if (didSave) {
+            response->println("{\"status\": \"ok\"}");
+        } else {
+            response->println("{\"status\": \"error\", \"message\": \"no callback present\"}");
+        }
+        request->send(response);
+        S0_LOG_DEBUG("Sent response to caller");
 
-        // redirect
-        request->redirect("/");
+        // restart if callback returned 0
+        if (!rc) {
+            ESP.restart();
+            // restart() doesn't always end execution
+            while (true) {
+                yield();
+            }
+        }
     });
+    this->server->addHandler(deviceHandler);
 
     this->server->on("/styles.css", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send(SPIFFS, "/styles.css");
@@ -166,90 +217,6 @@ ConfigWebServer::~ConfigWebServer() {
 }
 
 /*
-void initWebserver(DeviceConfig *deviceCfg, WifiConfig *wifiCfg) {
-    // save
-    _wifiCfg = wifiCfg;
-    _deviceCfg = deviceCfg;
-
-    // get routes
-    server.on("/", HTTP_GET, _get_root);
-    server.on("/wificonfig.html", HTTP_GET, _get_wificonfig);
-    server.on("/deviceconfig.html", HTTP_GET, _get_deviceconfig);
-    server.on("/styles.css", HTTP_GET, _get_CSS);
-    server.onNotFound(_notFound);
-
-    // start
-    server.begin();
-}
-*/
-
-
-/*
-
-void webRestarting(char* buffer) {
-    char title[] = "Restarting";
-    webHeader(buffer, false, title);
-    strcat(buffer, "</body></html>");
-}
-
-void _notFound(AsyncWebServerRequest *request) {
-    request->send(404, "text/plain", "Not found");
-}
-
-
-
-void _get_root(AsyncWebServerRequest *request) {
-    char data[] = \
-    "<div class=\"position menuitem height30\"><a href=\"./wificonfig.html\">Wi-Fi Config.</a></div>\n" \
-    "<div class=\"position menuitem height30\"><a href=\"./deviceconfig.html\">Device Config.</a></div>\n" \
-    "<div class=\"position menuitem height30\"><a href=\"./data.html\">Data</a></div>\n" \
-    
-    
-    "<div class=\"position menuitem height30\"><a href=\"./httpstatus.html\">HTTP status</a></div>";
-
-    char response[1024];
-    char title[] = "Menu";
-    webHeader(response, false, title);
-    strcat(response, data);
-    strcat(response, "<div class=\"position footer right\">");
-    strcat(response, VERSION_NUMBER);
-    strcat(response, "<br/>");
-    strcat(response, VERSION_LASTCHANGE);
-    strcat(response, "</div>");
-    strcat(response, "</body></html>");
-    request->send(200, "text/html", response);
-}
-
-
-
-ConfigWebserver::ConfigWebserver(DeviceConfig *deviceCfg, WifiConfig *wifiCfg) {
-    _wifiCfg = wifiCfg;
-    _deviceCfg = deviceCfg;
-}
-void ConfigWebserver::init() {
-    // add paths
-    server.on("/", HTTP_GET, _get_root);
-    server.on("/wificonfig.html", HTTP_GET, _get_wificonfig);
-    server.on("/deviceconfig.html", HTTP_GET, _get_deviceconfig);
-    server.on("/styles.css", HTTP_GET, _get_CSS);
-    server.onNotFound(_notFound);
-    server.begin();    
-}
-
-
-
-void webHandle_GetRoot() {
-    char response[1024];
-    webHeader(response, false, "Menu");
-    strcat(response, "<div class=\"position menuitem height30\"><a href=\"./data.html\">Data</a></div><div class=\"position menuitem height30\"><a href=\"./sensorconfig.html\">Device/Sensor Config.</a></div><div class=\"position menuitem height30\"><a href=\"./wificonfig.html\">Wi-Fi Config.</a></div><div class=\"position menuitem height30\"><a href=\"./httpstatus.html\">HTTP status</a></div>");
-    strcat(response, "<div class=\"position footer right\">");
-    strcat(response, VERSION_NUMBER);
-    strcat(response, "<br/>");
-    strcat(response, VERSION_LASTCHANGE);
-    strcat(response, "</div>");
-    strcat(response, "</body></html>");
-    server.send(200, "text/html", response);
-}
 
 void webHandle_GetHttpStatus() {
     char str_httpcode[8];
@@ -266,43 +233,6 @@ void webHandle_GetHttpStatus() {
     strcat(response, "<br/>");
     strcat(response, "</div>");
     strcat(response, "</body></html>");
-    server.send(200, "text/html", response);
-}
-
-void webHandle_GetData() {
-    char str_temp[8];
-    char str_hum[8];
-    uint8_t sensorCount = getSensorCount();
-
-    char response[400 + sensorCount * 100];
-    webHeader(response, true, "Data");
-    strcat(response, "<div class=\"position menuitem\">");
-
-    if (isSensorTypeDS18B20()) {
-        if (sensorCount > 0) {
-            for (uint8_t i = 0; i < sensorCount; i++) {
-                dtostrf(sensorSamples[i], 6, TEMP_DECIMALS, str_temp);
-
-                strcat(response, sensorIds[i]);
-                strcat(response, ": ");
-                strcat(response, str_temp);
-                strcat(response, "<br/>");
-            }
-        } else {
-            strcat(response, "No DS18B20 sensors found on bus");
-        }
-    } else if (isSensorTypeDHT22()) {
-        dtostrf(sensorSamples[0], 6, TEMP_DECIMALS, str_temp);
-        dtostrf(sensorSamples[1], 6, HUM_DECIMALS, str_hum);
-
-        strcat(response, "Temperature: ");
-        strcat(response, str_temp);
-        strcat(response, "&deg;C<br/>Humidity: ");
-        strcat(response, str_hum);
-        strcat(response, "%");
-    }
-
-    strcat(response, "</div></body></html>");
     server.send(200, "text/html", response);
 }
 

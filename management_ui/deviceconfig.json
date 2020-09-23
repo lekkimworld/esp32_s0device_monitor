@@ -1,0 +1,7 @@
+{
+    "delay_post": 120000,
+    "endpoint": "https://foo.example.com",
+    "jwt": "xxxxx...yyyyy",
+    "prod_cert": true,
+    "use_display": false
+}

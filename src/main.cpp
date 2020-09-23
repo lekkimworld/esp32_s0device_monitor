@@ -96,12 +96,16 @@ void turnOffLed(S0Device *device) {
 
 int httpPostData(char *data) {
     // prepare headers
-    uint16_t contentLength = strlen(data) + 4;
+    uint16_t contentLength = strlen(data);
     char str_contentLength[5];
     sprintf(str_contentLength, "%4i", contentLength);
     char bufferAuthHeader[400];
-    sprintf(bufferAuthHeader, "Bearer %s", MY_DEVICE_JWT);
+    sprintf(bufferAuthHeader, "Bearer %s", deviceCfg.jwt);
     S0_LOG_DEBUG("Free heap: %d", ESP.getFreeHeap());
+
+    S0_LOG_DEBUG("[HTTPS] posting payload: %s", data);
+    S0_LOG_DEBUG("[HTTPS] content-length: %s", str_contentLength);
+    S0_LOG_DEBUG("[HTTPS] authorization: %s", bufferAuthHeader);
 
     WiFiClientSecure *client = new WiFiClientSecure;
     if (client) {
@@ -109,14 +113,13 @@ int httpPostData(char *data) {
             ? rootCACertificate_DSTRootCAX3_HerokuCustomDoamin 
             : rootCACertificate_Digicert_HerokuDefaultDomain;
 
-        client->setCACert(rootCACertificate);
         {
             // Add a scoping block for HTTPClient https to make sure it is destroyed before WiFiClientSecure *client is
             HTTPClient https;
             S0_LOG_DEBUG("Free heap: %d", ESP.getFreeHeap());
 
             S0_LOG_DEBUG("[HTTPS] begin...");
-            if (https.begin(*client, MY_ENDPOINT_URL)) {
+            if (https.begin(*client, deviceCfg.endpoint), rootCACertificate) {
                 // start connection and send HTTP headers
                 S0_LOG_DEBUG("[HTTPS] Sending headers...");
                 https.addHeader("Authorization", bufferAuthHeader);
@@ -241,16 +244,6 @@ void setup() {
     buildNetworkName(ssid);
     WiFi.softAP(ssid, "");
     softAPEnabled = true;
-    server = new ConfigWebServer(&deviceCfg, &wifiCfg);
-    server->setWifiChangedCallback([](WifiConfig *wifiCfg) {
-        S0_LOG_DEBUG("Received callback from ConfigWebServer - something changed WifiConfig");
-        return writeConfiguration(wifiCfg);
-    });
-    server->setDeviceChangedCallback([](DeviceConfig *deviceCfg) {
-        S0_LOG_DEBUG("Received callback from ConfigWebServer - something changed DeviceConfig");
-        return 0;
-    });
-    server->init();
     S0_LOG_DEBUG("Started AP with SSID: %s", ssid);
 
     // read config
@@ -266,6 +259,18 @@ void setup() {
         initializePins();
         samplePeriodStart = millis();
     }
+
+    // create config server and init it
+    server = new ConfigWebServer(&deviceCfg, &wifiCfg);
+    server->setWifiChangedCallback([](WifiConfig *wifiCfg) {
+        S0_LOG_DEBUG("Received callback from ConfigWebServer - something changed WifiConfig");
+        return writeConfiguration(wifiCfg);
+    });
+    server->setDeviceChangedCallback([](DeviceConfig *deviceCfg) {
+        S0_LOG_DEBUG("Received callback from ConfigWebServer - something changed DeviceConfig");
+        return writeConfiguration(deviceCfg);
+    });
+    server->init();
 }
 
 void loop() {
@@ -278,7 +283,7 @@ void loop() {
         softAPEnabled = false;
     }
 
-    if (WiFi.status() == WL_CONNECTED && justReset && hasWebEndpoint()) {
+    if (WiFi.status() == WL_CONNECTED && justReset && hasWebEndpoint() && now > DELAY_SERVER_PING) {
         // send control message to server if we just came up
         pingServerOnStart();
         justReset = false;

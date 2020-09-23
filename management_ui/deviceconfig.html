@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="initial-scale=1.0">
+    <title>S0Monitor</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./script.js"></script>
+</head>
+
+<body>
+    <div class="position title">Device Config.</div>
+    <div class="position"><a href="./">Back</a></div>
+
+    <div class="position menuitem">
+        <p>
+            <div class="existing align-left">Delay, post: <span id="delay_post"></span>ms</div>
+            <div class="existing align-left">Endpoint: <span id="endpoint"></span></div>
+            <div class="existing align-left">JWT: <span id="jwt"></span></div>
+            <div class="existing align-left">Use prod. cert.: <span id="prod_cert"></span></div>
+            <div class="existing align-left">Use display: <span id="use_display"></span></div>
+        </p>
+        <form method="post">
+            <table border="0">
+                <tr>
+                    <td align="left">Delay, post</td>
+                    <td><input type="text" s0type="number" name="delay_post" autocomplete="off"></input>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="left">Endpoint</td>
+                    <td><input type="text" name="endpoint" autocomplete="off"></input>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="left">JWT</td>
+                    <td><input type="text" name="jwt" autocomplete="off"></input>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="left">Use prod. certificate</td>
+                    <td><input type="checkbox" name="prod_cert" value="1"></input>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="left">Use display</td>
+                    <td><input type="checkbox" name="use_display" value="1"></input>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" align="right"><button type="button" rel="deviceconfig">Save</button>
+                    </td>
+                </tr>
+            </table>
+    </div>
+
+    <div class="position right">
+        <span class="footer" id="VERSION_NUMBER"></span>
+        <span class="footer" id="VERSION_LASTCHANGE"></span>
+    </div>
+</body>
+
+</html>
