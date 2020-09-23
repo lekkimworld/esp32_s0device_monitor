@@ -1,6 +1,11 @@
 # esp32_s0device_monitor #
 
 
+## upload including SPIFFS ##
+```
+scripts/inline_management_ui.sh && pio run -e dev -t upload && pio run -e dev -t uploadfs
+```
+
 ## credentials.h ##
 * WIFI_SSID
 * WIFI_PASS

@@ -3,19 +3,8 @@
 #include "deviceconfig.h"
 #include <AsyncJson.h>
 #include <ArduinoJson.h>
+#include <SPIFFS.h>
 
-const char *css_styles = 
-#include "../management_ui_include/styles.css"
-;
-const char *js_script = 
-#include "../management_ui_include/script.js"
-;
-const char *html_root = 
-#include "../management_ui_include/root.html"
-;
-const char *html_wificonfig = 
-#include "../management_ui_include/wificonfig.html"
-;
 DeviceConfig *_deviceCfg;
 
 void _header(AsyncResponseStream *response, bool back, const char* title) {
@@ -48,6 +37,11 @@ void ConfigWebServer::setDeviceChangedCallback(DeviceConfigChangedCallback devic
 }
 
 void ConfigWebServer::init() {
+    if (!SPIFFS.begin(true)) {
+        S0_LOG_ERROR("Unable to initialize SPIFFS");
+        return;
+    }
+
     // create server
     this->server = new AsyncWebServer(80);
 
@@ -56,15 +50,10 @@ void ConfigWebServer::init() {
         request->send(404, "text/plain", "Not found");
     });
     this->server->on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-        AsyncResponseStream *response = request->beginResponseStream("text/html");
-        response->print(html_root);
-        request->send(response);
+        request->send(SPIFFS, "/root.html");
     });
     this->server->on("/wificonfig.html", HTTP_GET, [this](AsyncWebServerRequest *request){
-        AsyncResponseStream *response = request->beginResponseStream("text/html");
-        response->setCode(200);
-        response->print(html_wificonfig);
-        request->send(response);
+        request->send(SPIFFS, "/wificonfig.html");
     });
 
     AsyncCallbackJsonWebHandler* handler = new AsyncCallbackJsonWebHandler("/wifi.save", [this](AsyncWebServerRequest *request, JsonVariant &json) {
@@ -150,10 +139,10 @@ void ConfigWebServer::init() {
     });
 
     this->server->on("/styles.css", HTTP_GET, [](AsyncWebServerRequest *request) {
-        request->send(200, "text/css", css_styles);
+        request->send(SPIFFS, "/styles.css");
     });
     this->server->on("/script.js", HTTP_GET, [](AsyncWebServerRequest *request) {
-        request->send(200, "text/javascript", js_script);
+        request->send(SPIFFS, "/script.js");
     });
     this->server->on("/version.json", HTTP_GET, [](AsyncWebServerRequest *request) {
         char buffer[1024];
@@ -173,6 +162,7 @@ ConfigWebServer::~ConfigWebServer() {
     S0_LOG_INFO("Destructing ConfigWebServer instance - ending server and releasing memory");
     this->server->end();
     delete this->server;
+    SPIFFS.end();
 }
 
 /*
