@@ -2,8 +2,8 @@
 #include <ESPAsyncWebServer.h>
 #include "types.h"
 
-typedef std::function<void(WifiConfig *wifiCfg)> WifiConfigChangedCallback;
-typedef std::function<void(DeviceConfig *deviceCfg)> DeviceConfigChangedCallback;
+typedef std::function<int (WifiConfig *wifiCfg)> WifiConfigChangedCallback;
+typedef std::function<int (DeviceConfig *deviceCfg)> DeviceConfigChangedCallback;
 
 /**
  * Class to manage and control the web UI for configuration.

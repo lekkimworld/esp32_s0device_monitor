@@ -1,13 +1,27 @@
-#include <ArduinoLog.h>
 #include "version.h"
+#include "logging.h"
 #include "deviceconfig.h"
+#include <AsyncJson.h>
+#include <ArduinoJson.h>
 
+const char *css_styles = 
+#include "../management_ui_include/styles.css"
+;
+const char *js_script = 
+#include "../management_ui_include/script.js"
+;
+const char *html_root = 
+#include "../management_ui_include/root.html"
+;
+const char *html_wificonfig = 
+#include "../management_ui_include/wificonfig.html"
+;
 DeviceConfig *_deviceCfg;
 
 void _header(AsyncResponseStream *response, bool back, const char* title) {
     response->println("<!DOCTYPE html><html><head>" \
         "<meta name=\"viewport\" content=\"initial-scale=1.0\">" \
-        "<title>SensorCentral</title>" \
+        "<title>S0Monitor</title>" \
         "<link rel=\"stylesheet\" href=\"/styles.css\">" \
         "</head>" \
         "<body>");
@@ -20,7 +34,7 @@ void _footer(AsyncResponseStream *response) {
 }
 
 ConfigWebServer::ConfigWebServer(DeviceConfig *deviceCfg, WifiConfig *wifiCfg) {
-    Log.trace(F("Constructing ConfigWebServer instance" CR));
+    S0_LOG_DEBUG("Constructing ConfigWebServer instance");
     this->deviceCfg = deviceCfg;
     this->wifiCfg = wifiCfg;
 }
@@ -42,70 +56,64 @@ void ConfigWebServer::init() {
         request->send(404, "text/plain", "Not found");
     });
     this->server->on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-        char data[] = \
-        "<div class=\"position menuitem height30\"><a href=\"./wificonfig.html\">Wi-Fi Config.</a></div>\n" \
-        "<div class=\"position menuitem height30\"><a href=\"./deviceconfig.html\">Device Config.</a></div>\n" \
-        "<div class=\"position menuitem height30\"><a href=\"./data.html\">Data</a></div>\n" \
-        "<div class=\"position menuitem height30\"><a href=\"./httpstatus.html\">HTTP status</a></div>";
-
         AsyncResponseStream *response = request->beginResponseStream("text/html");
-        _header(response, false, "Menu");
-        response->print(data);
-        response->printf("<div class=\"position footer right\">%s<br/>%s</div>", VERSION_NUMBER, VERSION_LASTCHANGE);
-        response->println("</body></html>");
+        response->print(html_root);
         request->send(response);
     });
     this->server->on("/wificonfig.html", HTTP_GET, [this](AsyncWebServerRequest *request){
         AsyncResponseStream *response = request->beginResponseStream("text/html");
         response->setCode(200);
-
-        _header(response, true, "Wi-Fi Config.");
-        response->print("<div class=\"position menuitem\">");
-        response->print("<p>");
-        response->printf("Current SSID: %s<br/>", strlen(this->wifiCfg->ssid) == 0 ? "" : this->wifiCfg->ssid);
-        response->printf("Current Password: %.4s****<br/>", this->wifiCfg->password);
-        response->printf("Keep AP on: %s<br/>", this->wifiCfg->keep_ap_on ? "Yes" : "No");
-        response->printf("Status: %s</p>", WiFi.status() == WL_CONNECTED ? "Connected" : "NOT connected");
-        response->print("</p>");
-        response->print("<form method=\"post\" action=\"/wifi.save\">");
-        response->print("<table border=\"0\">");
-        response->print("<tr><td align=\"left\">SSID</td><td><input type=\"text\" name=\"ssid\" autocomplete=\"off\"></input></td></tr>");
-        response->print("<tr><td align=\"left\">Password</td><td><input type=\"text\" name=\"password\" autocomplete=\"off\"></input></td></tr>");
-        response->print("<tr><td align=\"left\">Keep AP on</td><td><input type=\"checkbox\" name=\"keep_ap_on\" value=\"1\"></input></td></tr>");
-        response->print("<tr><td colspan=\"2\" align=\"right\"><input type=\"submit\"></input></td></tr>");
-        response->print("</table>");
-        response->print("</div>");
-        _footer(response);
-        
+        response->print(html_wificonfig);
         request->send(response);
     });
-    this->server->on("/wifi.save", HTTP_POST, [this](AsyncWebServerRequest *request) {
-        Log.trace(F("Received POST to /wifi.save - reading parameters" CR));
-        String ssid = request->getParam("ssid", true)->value();
-        String pass = request->getParam("password", true)->value();
-        bool keep_on = request->hasParam("keep_ap_on") && request->getParam("keep_ap_on", true)->value() ? true : false;
-        Log.trace(F("Read POSTed parameters:" CR), ssid);
-        Log.trace(F(" > ssid: <%s>" CR), ssid);
-        Log.trace(F(" > password: <%s>" CR), pass);
-        Log.trace(F(" > keep_ap_on: <%d>" CR), keep_on);
+
+    AsyncCallbackJsonWebHandler* handler = new AsyncCallbackJsonWebHandler("/wifi.save", [this](AsyncWebServerRequest *request, JsonVariant &json) {
+        // get data
+        JsonObject jsonObj = json.as<JsonObject>();
+        const char *ssid = jsonObj["ssid"];
+        const char *pass = jsonObj["password"];
+        const bool keep_on = jsonObj["keep_ap_on"];
+        S0_LOG_DEBUG("Read POSTed parameters:");
+        S0_LOG_DEBUG(" > ssid: <%s>", ssid);
+        S0_LOG_DEBUG(" > password: <%s>", pass);
+        S0_LOG_DEBUG(" > keep_ap_on: <%d>", keep_on);
 
         // abort if no callback
-        if (wifiFunc == 0) {
-            Log.warning(F("No wifi callback set - nothing will be saved"));
+        bool didSave = false;
+        int rc = 0;
+        if (this->wifiFunc == 0) {
+            S0_LOG_ERROR("No wifi callback set - nothing will be saved");
         } else {
             // create new struct and call callback
+            S0_LOG_INFO("Wifi callback set - prepping data for callback");
             WifiConfig cfg;
-            strcpy(cfg.ssid, ssid.c_str());
-            strcpy(cfg.password, pass.c_str());
+            strcpy(cfg.ssid, ssid);
+            strcpy(cfg.password, pass);
             cfg.keep_ap_on = keep_on;
 
             // perform callback
-            wifiFunc(&cfg);
+            S0_LOG_DEBUG("Calling wifi callback");
+            rc = this->wifiFunc(&cfg);
+            didSave = true;
+            S0_LOG_DEBUG("Returned from wifi callback");
         }
+        
+        // send response
+        S0_LOG_DEBUG("Sending response to caller");
+        AsyncResponseStream *response = request->beginResponseStream("application/json");
+        response->setCode(200);
+        if (didSave) {
+            response->println("{\"status\": \"ok\"}");
+        } else {
+            response->println("{\"status\": \"error\", \"message\": \"no callback present\"}");
+        }
+        request->send(response);
 
-        // redirect
-        request->redirect("/");
+        // restart if callback returned 0
+        if (!rc) ESP.restart();
     });
+    this->server->addHandler(handler);
+
     this->server->on("/deviceconfig.html", HTTP_GET, [](AsyncWebServerRequest *request) {
         AsyncResponseStream *response = request->beginResponseStream("text/html");
         response->setCode(200);
@@ -125,11 +133,11 @@ void ConfigWebServer::init() {
         request->send(response);
     });
     this->server->on("/device.save", HTTP_POST, [this](AsyncWebServerRequest *request) {
-        Log.trace(F("Received POST to /device.save - reading parameters" CR));
+        S0_LOG_DEBUG("Received POST to /device.save - reading parameters");
         
         // abort if no callback
         if (deviceFunc == 0) {
-            Log.warning(F("No device callback set - nothing will be saved"));
+            S0_LOG_ERROR("No device callback set - nothing will be saved");
         } else {
             DeviceConfig cfg;
 
@@ -142,24 +150,27 @@ void ConfigWebServer::init() {
     });
 
     this->server->on("/styles.css", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/css", "* {font-size: 14pt;}\n" \
-        "a {font-weight: bold;}\n" \
-        "table {margin-left:auto;margin-right:auto;}\n" \
-        ".position {width: 60%; margin-bottom: 10px; position: relative; margin-left: auto; margin-right: auto;}\n" \
-        ".title {text-align: center; font-weight: bold; font-size: 20pt;}\n" \
-        ".right {text-align: right;}\n" \
-        ".footer {font-size: 10pt; font-style: italic;}\n" \
-        ".menuitem {text-align: center; background-color: #efefef; cursor: pointer; border: 1px solid black;}\n" \
-        ".height30 {height: 30px;}\n");
+        request->send(200, "text/css", css_styles);
     });
-    
+    this->server->on("/script.js", HTTP_GET, [](AsyncWebServerRequest *request) {
+        request->send(200, "text/javascript", js_script);
+    });
+    this->server->on("/version.json", HTTP_GET, [](AsyncWebServerRequest *request) {
+        char buffer[1024];
+        sprintf(buffer, "{\"version\": \"%s\", \"change\": \"%s\"}", VERSION_NUMBER, VERSION_LASTCHANGE);
 
-    Log.trace(F("Constructed ConfigWebServer instance - starting to accept incoming requests" CR));
+        AsyncResponseStream *response = request->beginResponseStream("application/json");
+        response->setCode(200);
+        response->print(buffer);
+        request->send(response);
+    });
+
+    S0_LOG_INFO("Constructed ConfigWebServer instance - starting to accept incoming requests");
     this->server->begin();
 }
 
 ConfigWebServer::~ConfigWebServer() {
-    Log.trace(F("Destructing ConfigWebServer instance - ending server and releasing memory" CR));
+    S0_LOG_INFO("Destructing ConfigWebServer instance - ending server and releasing memory");
     this->server->end();
     delete this->server;
 }

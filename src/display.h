@@ -1,7 +1,18 @@
+#include <Adafruit_SSD1306.h>
 
+extern Adafruit_SSD1306 display;
+extern DeviceConfig deviceCfg;
+int page = -1;
+        
 void updateDisplay() {
-    if (!useDisplay) return;
+    if (!deviceCfg.useDisplay) return;
+    S0_LOG_TRACE("[DISPLAY] updating");
     char buffer[48];
+    
+    // go to page 0 if over number of plugs
+    page++;
+    S0_LOG_TRACE("[DISPLAY] display page is: %d", page);
+    if (page > RJ45_PLUG_COUNT) page = 0;
 
     // clear display
     display.clearDisplay();
@@ -58,7 +69,7 @@ void updateDisplay() {
 }
 
 void writeDisplay(char *buffer) {
-    if (!useDisplay) return;
+    if (!deviceCfg.useDisplay) return;
 
     display.setCursor(0, 10);
     display.clearDisplay();
@@ -67,7 +78,7 @@ void writeDisplay(char *buffer) {
 }
 
 void initDisplay() {
-    if (!useDisplay) {
+    if (!deviceCfg.useDisplay) {
         S0_LOG_INFO("Not initializing display as useDisplay=false");
         return;
     }

@@ -1,6 +1,9 @@
 #include <EEPROM.h>
 #include "types.h"
-#include "logging.h"
+
+extern RJ45 plugs[];
+extern DeviceConfig deviceCfg;
+extern WifiConfig wifiCfg;
 
 int getDeviceConfigOffset() {
     return 0;
@@ -24,6 +27,7 @@ int writeConfiguration(WifiConfig *wifiCfg) {
         strcpy(deviceCfg.syslog_server, "");
         deviceCfg.syslog_port = 514;
         deviceCfg.productionCert = false;
+        deviceCfg.useDisplay = true;
         EEPROM.put(offset, deviceCfg);
 
         offset = getRJ45ConfigOffset_Plug0();
@@ -59,6 +63,9 @@ int writeConfiguration(WifiConfig *wifiCfg) {
     strcpy(newCfg.ssid, wifiCfg->ssid);
     strcpy(newCfg.password, wifiCfg->password);
     EEPROM.put(offset, newCfg);
+
+    // move pointer
+    wifiCfg = &newCfg;
 
     // save and return
     EEPROM.commit();

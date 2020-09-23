@@ -1,5 +1,8 @@
 {
     "files.associations": {
-        "functional": "cpp"
-    }
+        "functional": "cpp",
+        "*.css": "cpp",
+        "*.tcc": "cpp"
+    },
+    "python.pythonPath": "/usr/bin/python"
 }

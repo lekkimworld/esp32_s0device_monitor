@@ -1,2 +1,2 @@
-#define VERSION_NUMBER "20200921T1810"
-#define VERSION_LASTCHANGE "Combining master and pcb branches"
+#define VERSION_NUMBER "20200922T1110"
+#define VERSION_LASTCHANGE "Creating management ui w/ ajax"

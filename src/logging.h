@@ -1,12 +1,16 @@
-#pragma once
+#include <Arduino.h>
 #include <Syslog.h>
-#include "types.h"
 
-// Create a new syslog instance with LOG_KERN facility
-WiFiUDP udpClient;
-Syslog syslog(udpClient, deviceCfg.syslog_server, deviceCfg.syslog_port, DEVICE_HOSTNAME, APP_NAME, LOG_KERN);
-bool hasSyslog() {
-    return strlen(deviceCfg.syslog_server) > 0;
+extern Syslog syslog;
+bool hasSyslog();
+
+template <typename... Args>
+void S0_LOG_TRACE(const char *msg, Args... args) {
+    /*
+    Serial.print("[TRACE] - ");
+    Serial.printf(msg, args...);
+    Serial.println();
+    */
 }
 
 template <typename... Args>

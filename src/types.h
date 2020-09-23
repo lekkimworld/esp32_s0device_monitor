@@ -44,6 +44,7 @@ typedef struct {
 typedef struct {
   uint8_t version = CONFIGURATION_VERSION;
   bool productionCert = false;
+  bool useDisplay = true;
   char endpoint[64] = "";
   char jwt[512] = "";
   unsigned long delay_post = 0L;

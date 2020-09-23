@@ -1,20 +1,43 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
+#include <Syslog.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_GFX.h>
+#include <Wire.h>
 
 #include "constants.h"
 #include "types.h"
 #include "declarations.h"
+#include "logging.h"
 #include "config.h"
 #include "pem.h"
 #include "utils.h"
 #include "credentials.h"
 #include "deviceconfig.h"
 #include "isr.h"
-#include "logging.h"
 #include "display.h"
+
+RJ45 plugs[2];
+WifiConfig wifiCfg;
+DeviceConfig deviceCfg;
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+ConfigWebServer *server;
+unsigned long lastPageChange = 0;
+unsigned long samplePeriodStart = 0;
+unsigned long now = millis();
+bool justReset = true;
+bool softAPEnabled = false;
+
+// Create a new syslog instance with LOG_KERN facility
+WiFiUDP udpClient;
+Syslog syslog(udpClient, deviceCfg.syslog_server, deviceCfg.syslog_port, DEVICE_HOSTNAME, APP_NAME, LOG_KERN);
+bool hasSyslog() {
+    return strlen(deviceCfg.syslog_server) > 0;
+}
+
 
 void initializePins() {
     // init pin numbers etc.
@@ -192,17 +215,15 @@ void prepareControlRestartPayload(char *jsonBuffer, size_t size) {
  * an endpoint and the device just came up.
  */
 void pingServerOnStart() {
-    if (justReset && hasWebEndpoint()) {
-        // this is the first run - tell web server we restarted
-        justReset = false;
+    // this is the first run - tell web server we restarted
+    S0_LOG_DEBUG("Connected to wifi - send ping to server on start");
 
-        // prep payload
-        char payload[256];
-        prepareControlRestartPayload(payload, sizeof(payload));
+    // prep payload
+    char payload[256];
+    prepareControlRestartPayload(payload, sizeof(payload));
 
-        // send payload
-        httpPostData(payload);
-    }
+    // send payload
+    httpPostData(payload);
 }
 
 
@@ -223,12 +244,11 @@ void setup() {
     server = new ConfigWebServer(&deviceCfg, &wifiCfg);
     server->setWifiChangedCallback([](WifiConfig *wifiCfg) {
         S0_LOG_DEBUG("Received callback from ConfigWebServer - something changed WifiConfig");
-        writeConfiguration(wifiCfg);
-        delay(500);
-        ESP.restart();
+        return writeConfiguration(wifiCfg);
     });
     server->setDeviceChangedCallback([](DeviceConfig *deviceCfg) {
         S0_LOG_DEBUG("Received callback from ConfigWebServer - something changed DeviceConfig");
+        return 0;
     });
     server->init();
     S0_LOG_DEBUG("Started AP with SSID: %s", ssid);
@@ -258,15 +278,15 @@ void loop() {
         softAPEnabled = false;
     }
 
-    if (WiFi.status() == WL_CONNECTED && hasWebEndpoint()) {
-        // connected to wifi - send control message to server if we just came up
+    if (WiFi.status() == WL_CONNECTED && justReset && hasWebEndpoint()) {
+        // send control message to server if we just came up
         pingServerOnStart();
+        justReset = false;
     }
 
     // update current time
     now = millis();
-    boolean shouldUpdateDisplay = false;
-
+    
     // loop plugs and turn off leds that might be lit up
     for (int i = 0; i < RJ45_PLUG_COUNT; i++) {
         // get next plug
@@ -283,18 +303,9 @@ void loop() {
     }
 
     // calculate page to show
-    if (now - lastPageChange > PAGE_DISPLAY_TIME) {
-        shouldUpdateDisplay = true;
-
-        // go to page 0 if over number of plugs
-        if (page > RJ45_PLUG_COUNT) page = 0;
+    if ((now - lastPageChange) > PAGE_DISPLAY_TIME) {
         lastPageChange = now;
-    }
-
-    // update display if appropriate
-    if (shouldUpdateDisplay) {
         updateDisplay();
-        page++;
     }
 
     if (WiFi.status() == WL_CONNECTED && hasWebEndpoint() && now - samplePeriodStart > deviceCfg.delay_post) {

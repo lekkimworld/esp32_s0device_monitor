@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="initial-scale=1.0">
+    <title>S0Monitor</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./script.js"></script>
+</head>
+
+<body>
+    <div class="position title">Wi-Fi Config.</div>
+    <div class="position"><a href="./">Back</a></div>
+
+    <div class="position menuitem">
+        <p>
+            Current SSID: %s<br/> Current Password: <br/> Keep AP on: <br/> Status: %s
+        </p>
+        </p>
+        <form method="post">
+            <table border="0">
+                <tr>
+                    <td align="left">SSID</td>
+                    <td><input type="text" name="ssid" autocomplete="off"></input>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="left">Password</td>
+                    <td><input type="text" name="password" autocomplete="off"></input>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="left">Keep AP on</td>
+                    <td><input type="checkbox" name="keep_ap_on" value="1"></input>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" align="right"><button type="button" rel="wifi.save">Save</button>
+                    </td>
+                </tr>
+            </table>
+    </div>
+
+    <div class="position right">
+        <span class="footer" id="VERSION_NUMBER"></span>
+        <span class="footer" id="VERSION_LASTCHANGE"></span>
+    </div>
+</body>
+
+</html>

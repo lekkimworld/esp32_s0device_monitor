@@ -8,3 +8,7 @@ defines = {k: v for (k, v) in my_flags.get("CPPDEFINES")}
 print(defines)
 
 env.Replace(PROGNAME="s0device-monitor_%s_v%s" % (defines.get("ENVIRONMENT"), timestamp))
+
+
+
+
