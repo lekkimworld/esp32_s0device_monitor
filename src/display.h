@@ -46,7 +46,7 @@ void updateDisplay() {
 
     } else {
         // status for plug - get plug for page
-        RJ45 plug = plugs[page - 1];
+        RJ45 plug = plugs_runtime[page - 1];
 
         // print plug name
         sprintf(buffer, "Plug: %s", plug.name);
@@ -57,7 +57,7 @@ void updateDisplay() {
         // loop devices on plug
         for (int i = 0; i < plug.activeDevices; i++) {
             S0Device device = plug.devices[i];
-            sprintf(buffer, device.name, device.count);
+            sprintf(buffer, "%s: %d", device.name, device.count);
             display.setCursor(0, y);
             display.println(buffer);
             y += 10;

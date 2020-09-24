@@ -7,6 +7,11 @@
 #define DEVICE_IDX_BROWN  1
 #define DEVICE_IDX_BLUE   2
 #define DEVICE_IDX_GREEN  3
+#define DEVICES_PER_PLUG  4
+
+#define DELAY_SERVER_PING 5000
+#define S0_DEVICE_HOSTNAME "s0device_pcb"
+#define S0_APP_NAME "s0device_pcb"
 
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
@@ -40,7 +45,7 @@ typedef struct {
 } RJ45;
 
 // define struct to hold general config
-#define CONFIGURATION_VERSION 1
+#define CONFIGURATION_VERSION 2
 typedef struct {
   uint8_t version = CONFIGURATION_VERSION;
   bool productionCert = false;

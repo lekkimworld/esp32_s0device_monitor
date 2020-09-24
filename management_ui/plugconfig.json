@@ -1,0 +1,21 @@
+{
+    "plug_0_name": "Plug 0",
+    "plug_0_device_0_id": "p0d0_id",
+    "plug_0_device_0_name": "p0d0_name",
+    "plug_0_device_1_id": "p0d1_id",
+    "plug_0_device_1_name": "p0d1_name",
+    "plug_0_device_2_id": "p0d2_id",
+    "plug_0_device_2_name": "p0d2_name",
+    "plug_0_device_3_id": "p0d3_id",
+    "plug_0_device_3_name": "p0d3_name",
+
+    "plug_1_name": "Plug 1",
+    "plug_1_device_0_id": "p1d0_id",
+    "plug_1_device_0_name": "p1d0_name",
+    "plug_1_device_1_id": "p1d1_id",
+    "plug_1_device_1_name": "p1d1_name",
+    "plug_1_device_2_id": "p1d2_id",
+    "plug_1_device_2_name": "p1d2_name",
+    "plug_1_device_3_id": "p1d3_id",
+    "plug_1_device_3_name": "p1d3_name"
+}

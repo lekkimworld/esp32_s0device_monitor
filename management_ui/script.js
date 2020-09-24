@@ -1,10 +1,4 @@
 window.onload = () => {
-    // load version data
-    fetch("/version.json").then(res => res.json()).then(data => {
-        document.getElementById("VERSION_NUMBER").innerText = data.version;
-        document.getElementById("VERSION_LASTCHANGE").innerText = data.change;
-    })
-
     document.querySelectorAll("button").forEach(btn => {
         // get rel
         const rel = btn.getAttribute("rel");
@@ -13,13 +7,18 @@ window.onload = () => {
         // load existing data
         fetch(`/${rel}.json`).then(res => res.json()).then(data => {
             Object.keys(data).forEach(key => {
-                const elem = document.getElementById(key);
-                elem.innerText = data[key];
+                let elem = document.getElementById(key);
+                if (elem) elem.innerText = data[key];
+
+                elem = document.querySelector(`input[name=${key}]`);
+                if (elem) elem.value = data[key];
             })
         })
 
         // add click listener
         btn.addEventListener("click", ev => {
+            if (!confirm("Are you sure?")) return;
+
             const body = {}
             document.querySelectorAll("input").forEach(i => {
                 if (i.getAttribute("s0type") === "number") {

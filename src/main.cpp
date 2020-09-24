@@ -20,7 +20,8 @@
 #include "isr.h"
 #include "display.h"
 
-RJ45 plugs[2];
+RJ45Config rj45config[RJ45_PLUG_COUNT];
+S0Config s0config[RJ45_PLUG_COUNT * DEVICES_PER_PLUG];
 WifiConfig wifiCfg;
 DeviceConfig deviceCfg;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
@@ -30,10 +31,11 @@ unsigned long samplePeriodStart = 0;
 unsigned long now = millis();
 bool justReset = true;
 bool softAPEnabled = false;
+RJ45 plugs_runtime[2];
 
 // Create a new syslog instance with LOG_KERN facility
 WiFiUDP udpClient;
-Syslog syslog(udpClient, deviceCfg.syslog_server, deviceCfg.syslog_port, DEVICE_HOSTNAME, APP_NAME, LOG_KERN);
+Syslog syslog(udpClient, deviceCfg.syslog_server, deviceCfg.syslog_port, S0_DEVICE_HOSTNAME, S0_APP_NAME, LOG_KERN);
 bool hasSyslog() {
     return strlen(deviceCfg.syslog_server) > 0;
 }
@@ -45,7 +47,7 @@ void initializePins() {
 
     for (int i = 0; i < RJ45_PLUG_COUNT; i++) {
         // get next plug
-        RJ45 plug = plugs[i];
+        RJ45 plug = plugs_runtime[i];
 
         // loop devices on plug
         for (int k = 0; k < plug.activeDevices; k++) {
@@ -246,6 +248,9 @@ void setup() {
     softAPEnabled = true;
     S0_LOG_DEBUG("Started AP with SSID: %s", ssid);
 
+    // init eeprom and reset config if not at latest version
+    initConfiguration();
+
     // read config
     int rc = readConfiguration();
     if (rc) {
@@ -261,7 +266,7 @@ void setup() {
     }
 
     // create config server and init it
-    server = new ConfigWebServer(&deviceCfg, &wifiCfg);
+    server = new ConfigWebServer();
     server->setWifiChangedCallback([](WifiConfig *wifiCfg) {
         S0_LOG_DEBUG("Received callback from ConfigWebServer - something changed WifiConfig");
         return writeConfiguration(wifiCfg);
@@ -269,6 +274,10 @@ void setup() {
     server->setDeviceChangedCallback([](DeviceConfig *deviceCfg) {
         S0_LOG_DEBUG("Received callback from ConfigWebServer - something changed DeviceConfig");
         return writeConfiguration(deviceCfg);
+    });
+    server->setPlugChangedCallback([](RJ45Config *newRJ45, S0Config *newS0) {
+        S0_LOG_DEBUG("Received callback from ConfigWebServer - something changed RJ45Config / S0Config");
+        return writeConfiguration(newRJ45, newS0);
     });
     server->init();
 }
@@ -295,7 +304,7 @@ void loop() {
     // loop plugs and turn off leds that might be lit up
     for (int i = 0; i < RJ45_PLUG_COUNT; i++) {
         // get next plug
-        RJ45 plug = plugs[i];
+        RJ45 plug = plugs_runtime[i];
 
         // loop devices on plug
         for (int k = 0; k < plug.activeDevices; k++) {
@@ -323,10 +332,10 @@ void loop() {
         // copy S0Device structs
         RJ45 plugs_copy[RJ45_PLUG_COUNT];
         for (uint8_t i = 0; i < RJ45_PLUG_COUNT; i++) {
-            plugs_copy[i].activeDevices = plugs[i].activeDevices;
-            for (uint8_t j = 0; j < plugs[i].activeDevices; j++) {
-                plugs_copy[i].devices[j] = plugs[i].devices[j];
-                plugs[i].devices[j].count = 0;
+            plugs_copy[i].activeDevices = plugs_runtime[i].activeDevices;
+            for (uint8_t j = 0; j < plugs_runtime[i].activeDevices; j++) {
+                plugs_copy[i].devices[j] = plugs_runtime[i].devices[j];
+                plugs_runtime[i].devices[j].count = 0;
                 plugs_copy[i].devices[j].isr = 0;
             }
         }

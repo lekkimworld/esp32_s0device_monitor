@@ -1,7 +1,9 @@
 #include <EEPROM.h>
 #include "types.h"
 
-extern RJ45 plugs[];
+extern RJ45 plugs_runtime[];
+extern RJ45Config rj45config[];
+extern S0Config s0config[];
 extern DeviceConfig deviceCfg;
 extern WifiConfig wifiCfg;
 
@@ -17,56 +19,73 @@ int getRJ45ConfigOffset_Plug0() {
     return getWifiConfigOffset() + sizeof(WifiConfig);
 }
 
-int writeConfiguration(WifiConfig *cfg) {
-    // ensure config version is set
-    int offset = getDeviceConfigOffset();
-    if (deviceCfg.version != CONFIGURATION_VERSION) {
-        deviceCfg.version = CONFIGURATION_VERSION;
-        strcpy(deviceCfg.jwt, "");
-        strcpy(deviceCfg.endpoint, "");
-        strcpy(deviceCfg.syslog_server, "");
-        deviceCfg.syslog_port = 514;
-        deviceCfg.productionCert = false;
-        deviceCfg.useDisplay = true;
-        EEPROM.put(offset, deviceCfg);
+int initConfiguration() {
+    EEPROM.begin(
+        sizeof(DeviceConfig) + 
+        sizeof(WifiConfig) + 
+        2 * sizeof(RJ45) + 
+        8 * sizeof(S0Device)
+    );
 
-        offset = getRJ45ConfigOffset_Plug0();
-        RJ45Config rj45cfg;
-        strcpy(rj45cfg.name, "");
-        EEPROM.put(offset, rj45cfg);
+    DeviceConfig eepromDeviceCfg;
+    EEPROM.get(getDeviceConfigOffset(), eepromDeviceCfg);
+    if (eepromDeviceCfg.version == CONFIGURATION_VERSION) {
+        S0_LOG_INFO("Configuration in flash at latest version - will NOT reset it");
+        return 1;
+    }
+    S0_LOG_INFO("Configuration in flash NOT at latest version (%d) - will reset it", eepromDeviceCfg.version);
+
+    // reset wifi config
+    int offset = getWifiConfigOffset();
+    strcpy(wifiCfg.ssid, "");
+    strcpy(wifiCfg.password, "");
+    wifiCfg.keep_ap_on = false;
+    EEPROM.put(offset, wifiCfg);
+
+    // reset device config
+    offset = getDeviceConfigOffset();
+    deviceCfg.version = CONFIGURATION_VERSION;
+    strcpy(deviceCfg.jwt, "");
+    strcpy(deviceCfg.endpoint, "");
+    strcpy(deviceCfg.syslog_server, "");
+    deviceCfg.syslog_port = 514;
+    deviceCfg.productionCert = false;
+    deviceCfg.useDisplay = true;
+    EEPROM.put(offset, deviceCfg);
+        
+    // reset plug config
+    offset = getRJ45ConfigOffset_Plug0();
+    for (uint8_t i=0; i<RJ45_PLUG_COUNT; i++) {
+        strcpy(plugs_runtime[i].name, "");
+        plugs_runtime[i].activeDevices = 0;
+        strcpy(rj45config[i].name, "");
+        EEPROM.put(offset, plugs_runtime[i]);
         offset += sizeof(RJ45Config);
 
-        S0Config s0config[4];
-        for (int i=0; i<4; i++) {
-            strcpy(s0config[i].id, "");
-            strcpy(s0config[i].name, "");    
-            EEPROM.put(offset, s0config);
-            offset += sizeof(S0Config);
-        }
-
-        strcpy(rj45cfg.name, "");
-        EEPROM.put(offset, rj45cfg);
-        offset += sizeof(RJ45Config);
-
-        for (int i=0; i<4; i++) {
-            strcpy(s0config[i].id, "");
-            strcpy(s0config[i].name, "");    
-            EEPROM.put(offset, s0config);
+        for (int k=0; k<DEVICES_PER_PLUG; k++) {
+            uint8_t idx = i * DEVICES_PER_PLUG + k;
+            strcpy(plugs_runtime[i].devices[k].id, "");
+            strcpy(plugs_runtime[i].devices[k].name, "");
+            strcpy(s0config[idx].id, "");
+            strcpy(s0config[idx].name, "");
+            EEPROM.put(offset, plugs_runtime[i].devices[k]);
             offset += sizeof(S0Config);
         }
     }
+    
+    // commit
+    EEPROM.commit();
+    return 0;
+}
 
+int writeConfiguration(WifiConfig *cfg) {
     // write wifi config
-    offset = getWifiConfigOffset();
-    WifiConfig newCfg;
-    newCfg.keep_ap_on = cfg->keep_ap_on;
-    strcpy(newCfg.ssid, cfg->ssid);
-    strcpy(newCfg.password, cfg->password);
-    EEPROM.put(offset, newCfg);
-
-    // move pointer
-    wifiCfg = newCfg;
-
+    int offset = getWifiConfigOffset();
+    wifiCfg.keep_ap_on = cfg->keep_ap_on;
+    strcpy(wifiCfg.ssid, cfg->ssid);
+    strcpy(wifiCfg.password, cfg->password);
+    EEPROM.put(offset, wifiCfg);
+    
     // save and return
     EEPROM.commit();
     return 0;
@@ -91,18 +110,46 @@ int writeConfiguration(DeviceConfig *cfg) {
     return 0;
 }
 
+int writeConfiguration(RJ45Config *newRJ45, S0Config *newS0) {
+    // copy data into runtime versions
+    for (uint8_t i=0; i<RJ45_PLUG_COUNT; i++) {
+        strcpy(plugs_runtime[i].name, newRJ45[i].name);
+        strcpy(rj45config[i].name, newRJ45[i].name);
+        plugs_runtime[i].activeDevices = 0;
+
+        for (int k=0; k<DEVICES_PER_PLUG; k++) {
+            uint8_t idx = i * DEVICES_PER_PLUG + k;
+            strcpy(s0config[idx].id, newS0[idx].id);
+            strcpy(s0config[idx].name, newS0[idx].name);
+
+            strcpy(plugs_runtime[i].devices[k].id, newS0[idx].id);
+            strcpy(plugs_runtime[i].devices[k].name, newS0[idx].name);
+            if (strlen(s0config[idx].id) > 0) plugs_runtime[i].activeDevices++;
+        }
+    }
+
+    int offset = getRJ45ConfigOffset_Plug0();
+    for (uint8_t i=0; i<RJ45_PLUG_COUNT; i++) {
+        EEPROM.put(offset, rj45config[i]);
+        offset += sizeof(RJ45Config);
+
+        for (int k=0; k<DEVICES_PER_PLUG; k++) {
+            uint8_t idx = i * DEVICES_PER_PLUG + k;
+            EEPROM.put(offset, s0config[idx]);
+            offset += sizeof(S0Config);
+        }
+    }
+    
+    // return
+    EEPROM.commit();
+    return 0;
+}
+
 /**
  * Reads the configuration from the flash and returns 0 if successful and 
  * 1 otherwise.
  */
 int readConfiguration() {
-    EEPROM.begin(
-        sizeof(DeviceConfig) + 
-        sizeof(WifiConfig) + 
-        2 * sizeof(RJ45Config) + 
-        8 * sizeof(S0Config)
-    );
-
     // read device config
     EEPROM.get(getDeviceConfigOffset(), deviceCfg);
     
@@ -128,56 +175,41 @@ int readConfiguration() {
     S0_LOG_DEBUG("Keep AP on: %d", wifiCfg.keep_ap_on);
 
     // read config for first rj45 and then devices
-    RJ45Config rj45cfg_0;
-    S0Config s0config_0[4];
     int offset = getRJ45ConfigOffset_Plug0();
-    EEPROM.get(offset, rj45cfg_0);
-    offset += sizeof(RJ45Config);
-    for (uint8_t i=0; i<4; i++) {
-        EEPROM.get(offset, s0config_0[i]);
-        offset += sizeof(S0Config);
+    for (uint8_t i=0; i<RJ45_PLUG_COUNT; i++) {
+        EEPROM.get(offset, rj45config[i]);
+        offset += sizeof(RJ45Config);
+
+        for (uint8_t k=0; k<DEVICES_PER_PLUG; k++) {
+            uint8_t idx = i * DEVICES_PER_PLUG + k;
+            EEPROM.get(offset, s0config[idx]);
+            offset += sizeof(S0Config);
+        }
     }
 
-    // read config for second rj45 and then devices
-    RJ45Config rj45cfg_1;
-    S0Config s0config_1[4];
-    EEPROM.get(offset, rj45cfg_1);
-    offset += sizeof(RJ45Config);
-    for (uint8_t i=0; i<4; i++) {
-        EEPROM.get(offset, s0config_1[i]);
-        offset += sizeof(S0Config);
+    // move config into runtime config
+    for (uint8_t i=0; i<RJ45_PLUG_COUNT; i++) {
+        strcpy(plugs_runtime[i].name, rj45config[i].name);
+
+        for (uint8_t k=0; k<DEVICES_PER_PLUG; k++) {
+            uint8_t idx = i * DEVICES_PER_PLUG + k;
+            strcpy(plugs_runtime[i].devices[k].id, s0config[idx].id);
+            strcpy(plugs_runtime[i].devices[k].name, s0config[idx].name);
+            if (strlen(s0config[idx].id) > 0) plugs_runtime[i].activeDevices++;
+        }
     }
 
-    // move S0Config into plug config
-    strcpy(plugs[0].name, rj45cfg_0.name);
-    plugs[0].activeDevices = 0;
-    strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].name, s0config_0[DEVICE_IDX_ORANGE].name);
-    strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].id,   s0config_0[DEVICE_IDX_ORANGE].id);
-    if (strlen(s0config_0[DEVICE_IDX_ORANGE].id) > 0) plugs[0].activeDevices++;
-    strcpy(plugs[0].devices[DEVICE_IDX_BROWN].name,  s0config_0[DEVICE_IDX_BROWN].name);
-    strcpy(plugs[0].devices[DEVICE_IDX_BROWN].id,    s0config_0[DEVICE_IDX_BROWN].id);
-    if (strlen(s0config_0[DEVICE_IDX_BROWN].id) > 0) plugs[0].activeDevices++;
-    strcpy(plugs[0].devices[DEVICE_IDX_BLUE].name,   s0config_0[DEVICE_IDX_BLUE].name);
-    strcpy(plugs[0].devices[DEVICE_IDX_BLUE].id,     s0config_0[DEVICE_IDX_BLUE].id);
-    if (strlen(s0config_0[DEVICE_IDX_BLUE].id) > 0) plugs[0].activeDevices++;
-    strcpy(plugs[0].devices[DEVICE_IDX_GREEN].name,  s0config_0[DEVICE_IDX_GREEN].name);
-    strcpy(plugs[0].devices[DEVICE_IDX_GREEN].id,    s0config_0[DEVICE_IDX_GREEN].id);
-    if (strlen(s0config_0[DEVICE_IDX_GREEN].id) > 0) plugs[0].activeDevices++;
+    // show plug config
+    S0_LOG_DEBUG("Read PLUG configuration from flash - data follows");
+    for (uint8_t i=0; i<RJ45_PLUG_COUNT; i++) {
+        S0_LOG_DEBUG("Plug %d, name: %s", i, rj45config[i].name);
 
-    strcpy(plugs[1].name, rj45cfg_1.name);
-    plugs[1].activeDevices = 0;
-    strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].name, s0config_1[DEVICE_IDX_ORANGE].name);
-    strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].id,   s0config_1[DEVICE_IDX_ORANGE].id);
-    if (strlen(s0config_1[DEVICE_IDX_ORANGE].id) > 0) plugs[1].activeDevices++;
-    strcpy(plugs[1].devices[DEVICE_IDX_BROWN].name,  s0config_1[DEVICE_IDX_BROWN].name);
-    strcpy(plugs[1].devices[DEVICE_IDX_BROWN].id,    s0config_1[DEVICE_IDX_BROWN].id);
-    if (strlen(s0config_1[DEVICE_IDX_BROWN].id) > 0) plugs[1].activeDevices++;
-    strcpy(plugs[1].devices[DEVICE_IDX_BLUE].name,   s0config_1[DEVICE_IDX_BLUE].name);
-    strcpy(plugs[1].devices[DEVICE_IDX_BLUE].id,     s0config_1[DEVICE_IDX_BLUE].id);
-    if (strlen(s0config_1[DEVICE_IDX_BLUE].id) > 0) plugs[1].activeDevices++;
-    strcpy(plugs[1].devices[DEVICE_IDX_GREEN].name,  s0config_1[DEVICE_IDX_GREEN].name);
-    strcpy(plugs[1].devices[DEVICE_IDX_GREEN].id,    s0config_1[DEVICE_IDX_GREEN].id);
-    if (strlen(s0config_1[DEVICE_IDX_GREEN].id) > 0) plugs[1].activeDevices++;
+        for (uint8_t k=0; k<DEVICES_PER_PLUG; k++) {
+            uint8_t idx = i * DEVICES_PER_PLUG + k;
+            S0_LOG_DEBUG("Plug %d, device %d, id  : %s", i, k, s0config[idx].id);
+            S0_LOG_DEBUG("Plug %d, device %d, name: %s", i, k, s0config[idx].name);
+        }
+    }
 
     // return
     return 0;
