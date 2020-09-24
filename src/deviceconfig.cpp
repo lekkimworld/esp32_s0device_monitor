@@ -11,6 +11,7 @@ extern RJ45Config rj45config[];
 extern S0Config s0config[];
 
 String _templateProcessor(const String& var) {
+    if (var == "TITLE") return F("S0 Monitor");
     if (var == "VERSION_NUMBER") return VERSION_NUMBER;
     if (var == "VERSION_LASTCHANGE") return VERSION_LASTCHANGE;
     return String();
