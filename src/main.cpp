@@ -10,7 +10,6 @@
 
 #include "constants.h"
 #include "types.h"
-#include "declarations.h"
 #include "logging.h"
 #include "config.h"
 #include "pem.h"
