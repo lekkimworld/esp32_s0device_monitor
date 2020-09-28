@@ -19,10 +19,13 @@
 #include "isr.h"
 #include "display.h"
 
-RJ45Config rj45config[RJ45_PLUG_COUNT];
-S0Config s0config[RJ45_PLUG_COUNT * DEVICES_PER_PLUG];
-WifiConfig wifiCfg;
-DeviceConfig deviceCfg;
+// configuration read / written to EEPROM
+RJ45Config      rj45config[RJ45_PLUG_COUNT];
+S0Config        s0config[RJ45_PLUG_COUNT * DEVICES_PER_PLUG];
+WifiConfig      wificonfig;
+DeviceConfig    deviceconfig;
+
+// declarations
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 ConfigWebServer *server;
 unsigned long lastPageChange = 0;
@@ -34,9 +37,9 @@ RJ45 plugs_runtime[2];
 
 // Create a new syslog instance with LOG_KERN facility
 WiFiUDP udpClient;
-Syslog syslog(udpClient, deviceCfg.syslog_server, deviceCfg.syslog_port, S0_DEVICE_HOSTNAME, S0_APP_NAME, LOG_KERN);
+Syslog syslog(udpClient, deviceconfig.syslog_server, deviceconfig.syslog_port, S0_DEVICE_HOSTNAME, S0_APP_NAME, LOG_KERN);
 bool hasSyslog() {
-    return strlen(deviceCfg.syslog_server) > 0;
+    return strlen(deviceconfig.syslog_server) > 0;
 }
 
 
@@ -70,7 +73,7 @@ void initializePins() {
 void initializeWifi() {
     // init wifi
     S0_LOG_INFO("Starting to initiate wi-fi connection");
-    WiFi.begin(wifiCfg.ssid, wifiCfg.password);
+    WiFi.begin(wificonfig.ssid, wificonfig.password);
     int wifiDelayCount = 0;
     while (WiFi.status() != WL_CONNECTED && wifiDelayCount < 10) {
         delay(1000);
@@ -101,7 +104,7 @@ int httpPostData(char *data) {
     char str_contentLength[5];
     sprintf(str_contentLength, "%4i", contentLength);
     char bufferAuthHeader[400];
-    sprintf(bufferAuthHeader, "Bearer %s", deviceCfg.jwt);
+    sprintf(bufferAuthHeader, "Bearer %s", deviceconfig.jwt);
     S0_LOG_DEBUG("Free heap: %d", ESP.getFreeHeap());
 
     S0_LOG_DEBUG("[HTTPS] posting payload: %s", data);
@@ -110,7 +113,7 @@ int httpPostData(char *data) {
 
     WiFiClientSecure *client = new WiFiClientSecure;
     if (client) {
-        const char * rootCACertificate = deviceCfg.productionCert 
+        const char * rootCACertificate = deviceconfig.productionCert 
             ? rootCACertificate_DSTRootCAX3_HerokuCustomDoamin 
             : rootCACertificate_Digicert_HerokuDefaultDomain;
 
@@ -120,7 +123,7 @@ int httpPostData(char *data) {
             S0_LOG_DEBUG("Free heap: %d", ESP.getFreeHeap());
 
             S0_LOG_DEBUG("[HTTPS] begin...");
-            if (https.begin(*client, deviceCfg.endpoint), rootCACertificate) {
+            if (https.begin(*client, deviceconfig.endpoint), rootCACertificate) {
                 // start connection and send HTTP headers
                 S0_LOG_DEBUG("[HTTPS] Sending headers...");
                 https.addHeader("Authorization", bufferAuthHeader);
@@ -268,13 +271,13 @@ void setup() {
 
     // create config server and init it
     server = new ConfigWebServer();
-    server->setWifiChangedCallback([](WifiConfig *wifiCfg) {
+    server->setWifiChangedCallback([](WifiConfig *wificonfig) {
         S0_LOG_DEBUG("Received callback from ConfigWebServer - something changed WifiConfig");
-        return writeConfiguration(wifiCfg);
+        return writeConfiguration(wificonfig);
     });
-    server->setDeviceChangedCallback([](DeviceConfig *deviceCfg) {
+    server->setDeviceChangedCallback([](DeviceConfig *deviceconfig) {
         S0_LOG_DEBUG("Received callback from ConfigWebServer - something changed DeviceConfig");
-        return writeConfiguration(deviceCfg);
+        return writeConfiguration(deviceconfig);
     });
     server->setPlugChangedCallback([](RJ45Config *newRJ45, S0Config *newS0) {
         S0_LOG_DEBUG("Received callback from ConfigWebServer - something changed RJ45Config / S0Config");
@@ -285,7 +288,7 @@ void setup() {
 
 void loop() {
     // disable AP
-    if (softAPEnabled && (millis() > DELAY_TURNOFF_AP) && wifiCfg.keep_ap_on == false) {
+    if (softAPEnabled && (millis() > DELAY_TURNOFF_AP) && wificonfig.keep_ap_on == false) {
         // diable AP
         S0_LOG_DEBUG("Disabling AP...");
         WiFi.softAPdisconnect(false);
@@ -323,7 +326,7 @@ void loop() {
         updateDisplay();
     }
 
-    if (WiFi.status() == WL_CONNECTED && hasWebEndpoint() && now - samplePeriodStart > deviceCfg.delay_post) {
+    if (WiFi.status() == WL_CONNECTED && hasWebEndpoint() && now - samplePeriodStart > deviceconfig.delay_post) {
         S0_LOG_INFO("Will post to server...");
 
         // keep track of when we last sent data
@@ -344,7 +347,7 @@ void loop() {
 
         // prepare payload
         char payload[2048];
-        prepareDataPayload(payload, sizeof(payload), plugs_copy, deviceCfg.delay_post);
+        prepareDataPayload(payload, sizeof(payload), plugs_copy, deviceconfig.delay_post);
         S0_LOG_DEBUG("Prepared payload");
 
         httpPostData(payload);

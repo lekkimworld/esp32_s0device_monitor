@@ -4,8 +4,8 @@
 extern RJ45 plugs_runtime[];
 extern RJ45Config rj45config[];
 extern S0Config s0config[];
-extern DeviceConfig deviceCfg;
-extern WifiConfig wifiCfg;
+extern DeviceConfig deviceconfig;
+extern WifiConfig wificonfig;
 
 int getDeviceConfigOffset() {
     return 0;
@@ -27,31 +27,31 @@ int initConfiguration() {
         8 * sizeof(S0Device)
     );
 
-    DeviceConfig eepromDeviceCfg;
-    EEPROM.get(getDeviceConfigOffset(), eepromDeviceCfg);
-    if (eepromDeviceCfg.version == CONFIGURATION_VERSION) {
+    DeviceConfig eepromdeviceconfig;
+    EEPROM.get(getDeviceConfigOffset(), eepromdeviceconfig);
+    if (eepromdeviceconfig.version == CONFIGURATION_VERSION) {
         S0_LOG_INFO("Configuration in flash at latest version - will NOT reset it");
         return 1;
     }
-    S0_LOG_INFO("Configuration in flash NOT at latest version (%d) - will reset it", eepromDeviceCfg.version);
+    S0_LOG_INFO("Configuration in flash NOT at latest version (%d) - will reset it", eepromdeviceconfig.version);
 
     // reset wifi config
     int offset = getWifiConfigOffset();
-    strcpy(wifiCfg.ssid, "");
-    strcpy(wifiCfg.password, "");
-    wifiCfg.keep_ap_on = false;
-    EEPROM.put(offset, wifiCfg);
+    strcpy(wificonfig.ssid, "");
+    strcpy(wificonfig.password, "");
+    wificonfig.keep_ap_on = false;
+    EEPROM.put(offset, wificonfig);
 
     // reset device config
     offset = getDeviceConfigOffset();
-    deviceCfg.version = CONFIGURATION_VERSION;
-    strcpy(deviceCfg.jwt, "");
-    strcpy(deviceCfg.endpoint, "");
-    strcpy(deviceCfg.syslog_server, "");
-    deviceCfg.syslog_port = 514;
-    deviceCfg.productionCert = false;
-    deviceCfg.useDisplay = true;
-    EEPROM.put(offset, deviceCfg);
+    deviceconfig.version = CONFIGURATION_VERSION;
+    strcpy(deviceconfig.jwt, "");
+    strcpy(deviceconfig.endpoint, "");
+    strcpy(deviceconfig.syslog_server, "");
+    deviceconfig.syslog_port = 514;
+    deviceconfig.productionCert = false;
+    deviceconfig.useDisplay = true;
+    EEPROM.put(offset, deviceconfig);
         
     // reset plug config
     offset = getRJ45ConfigOffset_Plug0();
@@ -81,10 +81,10 @@ int initConfiguration() {
 int writeConfiguration(WifiConfig *cfg) {
     // write wifi config
     int offset = getWifiConfigOffset();
-    wifiCfg.keep_ap_on = cfg->keep_ap_on;
-    strcpy(wifiCfg.ssid, cfg->ssid);
-    strcpy(wifiCfg.password, cfg->password);
-    EEPROM.put(offset, wifiCfg);
+    wificonfig.keep_ap_on = cfg->keep_ap_on;
+    strcpy(wificonfig.ssid, cfg->ssid);
+    strcpy(wificonfig.password, cfg->password);
+    EEPROM.put(offset, wificonfig);
     
     // save and return
     EEPROM.commit();
@@ -103,7 +103,7 @@ int writeConfiguration(DeviceConfig *cfg) {
     EEPROM.put(offset, newCfg);
 
     // move pointer
-    deviceCfg = newCfg;
+    deviceconfig = newCfg;
 
     // save and return
     EEPROM.commit();
@@ -151,28 +151,28 @@ int writeConfiguration(RJ45Config *newRJ45, S0Config *newS0) {
  */
 int readConfiguration() {
     // read device config
-    EEPROM.get(getDeviceConfigOffset(), deviceCfg);
+    EEPROM.get(getDeviceConfigOffset(), deviceconfig);
     
     // validate config
-    if (deviceCfg.version != CONFIGURATION_VERSION) {
+    if (deviceconfig.version != CONFIGURATION_VERSION) {
         // not a valid config
         S0_LOG_DEBUG("Couldn't find device config of required version (%d) in flash", CONFIGURATION_VERSION);
         return false;
     }
     S0_LOG_DEBUG("Read DEVICE configuration from flash - data follows");
-    S0_LOG_DEBUG("Endpoint        : %s", deviceCfg.endpoint);
-    S0_LOG_DEBUG("Production cert.: %s", deviceCfg.productionCert ? "true" : "false");
-    S0_LOG_DEBUG("JWT             : %s", deviceCfg.jwt);
-    S0_LOG_DEBUG("Syslog server   : %s", deviceCfg.syslog_server);
-    S0_LOG_DEBUG("Syslog port     : %d", deviceCfg.syslog_port);
-    S0_LOG_DEBUG("Delay post      : %u", deviceCfg.delay_post);
+    S0_LOG_DEBUG("Endpoint        : %s", deviceconfig.endpoint);
+    S0_LOG_DEBUG("Production cert.: %s", deviceconfig.productionCert ? "true" : "false");
+    S0_LOG_DEBUG("JWT             : %s", deviceconfig.jwt);
+    S0_LOG_DEBUG("Syslog server   : %s", deviceconfig.syslog_server);
+    S0_LOG_DEBUG("Syslog port     : %d", deviceconfig.syslog_port);
+    S0_LOG_DEBUG("Delay post      : %u", deviceconfig.delay_post);
 
     // read wifi config
-    EEPROM.get(getWifiConfigOffset(), wifiCfg);
+    EEPROM.get(getWifiConfigOffset(), wificonfig);
     S0_LOG_DEBUG("Read WIFI configuration from flash - data follows");
-    S0_LOG_DEBUG("SSID      : %s", wifiCfg.ssid);
-    S0_LOG_DEBUG("Password  : %s", wifiCfg.password);
-    S0_LOG_DEBUG("Keep AP on: %d", wifiCfg.keep_ap_on);
+    S0_LOG_DEBUG("SSID      : %s", wificonfig.ssid);
+    S0_LOG_DEBUG("Password  : %s", wificonfig.password);
+    S0_LOG_DEBUG("Keep AP on: %d", wificonfig.keep_ap_on);
 
     // read config for first rj45 and then devices
     int offset = getRJ45ConfigOffset_Plug0();

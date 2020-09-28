@@ -33,5 +33,5 @@ void buildNetworkName(char* buffer) {
 }
 
 bool hasWebEndpoint() {
-    return strlen(deviceCfg.endpoint) > 0;
+    return strlen(deviceconfig.endpoint) > 0;
 }

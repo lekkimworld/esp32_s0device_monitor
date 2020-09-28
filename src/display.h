@@ -1,11 +1,11 @@
 #include <Adafruit_SSD1306.h>
 
 extern Adafruit_SSD1306 display;
-extern DeviceConfig deviceCfg;
+extern DeviceConfig deviceconfig;
 int page = -1;
         
 void updateDisplay() {
-    if (!deviceCfg.useDisplay) return;
+    if (!deviceconfig.useDisplay) return;
     S0_LOG_TRACE("[DISPLAY] updating");
     char buffer[48];
     
@@ -47,7 +47,7 @@ void updateDisplay() {
         display.println("Endpoint:");
         y += 10;
         display.setCursor(0, y);
-        display.println(deviceCfg.endpoint);
+        display.println(deviceconfig.endpoint);
         y += 10;
 
     } else {
@@ -75,7 +75,7 @@ void updateDisplay() {
 }
 
 void writeDisplay(char *buffer) {
-    if (!deviceCfg.useDisplay) return;
+    if (!deviceconfig.useDisplay) return;
 
     display.setCursor(0, 10);
     display.clearDisplay();
@@ -84,7 +84,7 @@ void writeDisplay(char *buffer) {
 }
 
 void initDisplay() {
-    if (!deviceCfg.useDisplay) {
+    if (!deviceconfig.useDisplay) {
         S0_LOG_INFO("Not initializing display as useDisplay=false");
         return;
     }

@@ -1,2 +1,2 @@
-#define VERSION_NUMBER "20200924T1310"
-#define VERSION_LASTCHANGE "Working plug config in web ui"
+#define VERSION_NUMBER "20200928T1205"
+#define VERSION_LASTCHANGE "Working web mgmt ui and logging level"

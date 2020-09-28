@@ -5,8 +5,8 @@
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
 
-extern WifiConfig wifiCfg;
-extern DeviceConfig deviceCfg;
+extern WifiConfig wificonfig;
+extern DeviceConfig deviceconfig;
 extern RJ45Config rj45config[];
 extern S0Config s0config[];
 
@@ -27,12 +27,12 @@ void ConfigWebServer::_wifiConfig() {
     });
     this->server->on("/wificonfig.json", HTTP_GET, [this](AsyncWebServerRequest *request){
         char passbuf[10];
-        sprintf(passbuf, "%.4s****", wifiCfg.password);
+        sprintf(passbuf, "%.4s****", wificonfig.password);
 
         StaticJsonDocument<256> doc;
-        doc["ssid"].set(wifiCfg.ssid);
+        doc["ssid"].set(wificonfig.ssid);
         doc["password"].set(passbuf);
-        doc["keep_ap_on"].set(wifiCfg.keep_ap_on);;
+        doc["keep_ap_on"].set(wificonfig.keep_ap_on);;
         doc["status"].set(WiFi.status() == WL_CONNECTED ? "Connected" : "NOT connected");
 
         AsyncResponseStream *response = request->beginResponseStream("application/json");
@@ -102,14 +102,14 @@ void ConfigWebServer::_deviceConfig() {
     });
     this->server->on("/deviceconfig.json", HTTP_GET, [this](AsyncWebServerRequest *request){
         char jwtbuf[10];
-        sprintf(jwtbuf, "%.10s****", deviceCfg.jwt);
+        sprintf(jwtbuf, "%.10s****", deviceconfig.jwt);
 
         StaticJsonDocument<256> doc;
-        doc["delay_post"].set(deviceCfg.delay_post);
-        doc["endpoint"].set(deviceCfg.endpoint);
+        doc["delay_post"].set(deviceconfig.delay_post);
+        doc["endpoint"].set(deviceconfig.endpoint);
         doc["jwt"].set(jwtbuf);
-        doc["prod_cert"].set(deviceCfg.productionCert);
-        doc["use_display"].set(deviceCfg.useDisplay);
+        doc["prod_cert"].set(deviceconfig.productionCert);
+        doc["use_display"].set(deviceconfig.useDisplay);
 
         AsyncResponseStream *response = request->beginResponseStream("application/json");
         serializeJson(doc, *response);

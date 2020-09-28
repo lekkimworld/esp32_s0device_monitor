@@ -2,8 +2,8 @@
 #include <ESPAsyncWebServer.h>
 #include "types.h"
 
-typedef std::function<int (WifiConfig *wifiCfg)> WifiConfigChangedCallback;
-typedef std::function<int (DeviceConfig *deviceCfg)> DeviceConfigChangedCallback;
+typedef std::function<int (WifiConfig *wificonfig)> WifiConfigChangedCallback;
+typedef std::function<int (DeviceConfig *deviceconfig)> DeviceConfigChangedCallback;
 typedef std::function<int (RJ45Config *plugCfgs, S0Config *s0Cfgs)> PlugConfigChangedCallback;
 
 /**
