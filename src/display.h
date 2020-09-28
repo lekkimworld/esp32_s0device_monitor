@@ -28,20 +28,26 @@ void updateDisplay() {
     if (0 == page) {
         // network info page - show Mac
         display.setCursor(0, y);
-        display.println("Mac address:");
-        y += 10;
+        display.print("MAC:");
         char mac_addr[20];
         getMacAddressString(mac_addr);
-        display.setCursor(0, y);
+        display.setCursor(25, y);
         display.println(mac_addr);
         y += 10;
 
         // show IP
         display.setCursor(0, y);
-        display.println("IP address:");
+        display.print("IP :");
+        display.setCursor(25, y);
+        display.println(WiFi.localIP().toString().c_str());
+        y += 10;
+
+        // show endpoint
+        display.setCursor(0, y);
+        display.println("Endpoint:");
         y += 10;
         display.setCursor(0, y);
-        display.println(WiFi.localIP().toString().c_str());
+        display.println(deviceCfg.endpoint);
         y += 10;
 
     } else {

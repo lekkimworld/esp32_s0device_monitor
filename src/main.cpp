@@ -234,8 +234,10 @@ void pingServerOnStart() {
 // ********** MAIN METHODS **************
 
 void setup() {
-    // setup serial and init display
+    // setup serial and init display    
     Serial.begin(115200);
+    Serial.print("S0_DEBUG_LEVEL=");
+    Serial.println(S0_LOG_LEVEL);
 
     // init the display
     initDisplay();
