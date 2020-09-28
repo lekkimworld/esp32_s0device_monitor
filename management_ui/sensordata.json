@@ -1,0 +1,19 @@
+{
+    "plug_0_device_0_name": "p0d0_name",
+    "plug_0_device_0_value": 11,
+    "plug_0_device_1_name": "p0d1_name",
+    "plug_0_device_1_value": 21,
+    "plug_0_device_2_name": "p0d2_name",
+    "plug_0_device_2_value": 31,
+    "plug_0_device_3_name": "p0d3_name",
+    "plug_0_device_3_value": 41,
+
+    "plug_1_device_0_name": "p1d0_name",
+    "plug_1_device_0_value": 21,
+    "plug_1_device_1_name": "p1d1_name",
+    "plug_1_device_1_value": 22,
+    "plug_1_device_2_name": "p1d2_name",
+    "plug_1_device_2_value": 32,
+    "plug_1_device_3_name": "p1d3_name",
+    "plug_1_device_3_value": 42
+}

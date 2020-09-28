@@ -9,11 +9,20 @@ extern WifiConfig wificonfig;
 extern DeviceConfig deviceconfig;
 extern RJ45Config rj45config[];
 extern S0Config s0config[];
+extern RJ45 plugs_runtime[];
+extern int httpCode;
+extern String httpData; 
 
 String _templateProcessor(const String& var) {
     if (var == "TITLE") return F("S0 Monitor");
     if (var == "VERSION_NUMBER") return VERSION_NUMBER;
     if (var == "VERSION_LASTCHANGE") return VERSION_LASTCHANGE;
+    if (var == "HTTP_CODE") {
+        char buffer[4];
+        sprintf(buffer, "%d", httpCode);
+        return String(buffer);
+    };
+    if (var == "HTTP_DATA") return httpData;
     return String();
 }
 
@@ -273,6 +282,29 @@ void ConfigWebServer::_plugConfig() {
     this->server->addHandler(handler);
 }
 
+void ConfigWebServer::_sensorData() {
+    this->server->on("/sensordata.html", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        request->send(SPIFFS, "/sensordata.html", String(), false, _templateProcessor);
+    });
+    this->server->on("/sensordata.json", HTTP_GET, [this](AsyncWebServerRequest *request){
+        StaticJsonDocument<1024> doc;
+        char buffer[20];
+        for (uint8_t i=0; i<RJ45_PLUG_COUNT; i++) {
+            for (uint8_t k=0; k<DEVICES_PER_PLUG; k++) {
+                uint8_t idx = i * DEVICES_PER_PLUG + k;
+                sprintf(buffer, "plug_%d_device_%d_name", i, k);
+                doc[buffer].set(s0config[idx].name);
+                sprintf(buffer, "plug_%d_device_%d_value", i, k);
+                doc[buffer].set(plugs_runtime[i].devices[k].count);
+            }
+        }
+
+        AsyncResponseStream *response = request->beginResponseStream("application/json");
+        serializeJson(doc, *response);
+        request->send(response);
+    });
+}
+
 void ConfigWebServer::setWifiChangedCallback(WifiConfigChangedCallback wifiFunc) {
     this->wifiFunc = wifiFunc;
 }
@@ -303,12 +335,18 @@ void ConfigWebServer::init() {
     // ******************** device config
     this->_deviceConfig();
 
+    // ******************* sensor data
+    this->_sensorData();
+
     // add static routes
     this->server->onNotFound([](AsyncWebServerRequest *request) {
         request->send(404, "text/plain", "Not found");
     });
     this->server->on("/", HTTP_GET, [this](AsyncWebServerRequest *request) {
         request->send(SPIFFS, "/root.html", String(), false, _templateProcessor);
+    });
+    this->server->on("/httpstatus.html", HTTP_GET, [this](AsyncWebServerRequest *request) {
+        request->send(SPIFFS, "/httpstatus.html", String(), false, _templateProcessor);
     });
     this->server->on("/styles.css", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send(SPIFFS, "/styles.css");
@@ -337,26 +375,3 @@ ConfigWebServer::~ConfigWebServer() {
     delete this->server;
     SPIFFS.end();
 }
-
-/*
-
-void webHandle_GetHttpStatus() {
-    char str_httpcode[8];
-    sprintf(str_httpcode, "%d", lastHttpResponseCode);
-
-    char response[600];
-    webHeader(response, true, "HTTP Status");
-    strcat(response, "<div class=\"position menuitem\">");
-    strcat(response, "HTTP Code: ");
-    strcat(response, str_httpcode);
-    strcat(response, "<br/>");
-    strcat(response, "HTTP Response: <br/>");
-    strcat(response, lastHttpResponse);
-    strcat(response, "<br/>");
-    strcat(response, "</div>");
-    strcat(response, "</body></html>");
-    server.send(200, "text/html", response);
-}
-
-
-*/

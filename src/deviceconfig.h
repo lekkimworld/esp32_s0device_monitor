@@ -18,6 +18,7 @@ class ConfigWebServer {
     void _deviceConfig();
     void _wifiConfig();
     void _plugConfig();
+    void _sensorData();
 
     public:
     ConfigWebServer();

@@ -33,6 +33,8 @@ unsigned long samplePeriodStart = 0;
 unsigned long now = millis();
 bool justReset = true;
 bool softAPEnabled = false;
+int httpCode;
+String httpData;
 RJ45 plugs_runtime[2];
 
 // Create a new syslog instance with LOG_KERN facility
@@ -133,7 +135,7 @@ int httpPostData(char *data) {
 
                 // do post
                 S0_LOG_DEBUG("[HTTPS] POSTing data");
-                int httpCode = https.POST(data);
+                httpCode = https.POST(data);
                 S0_LOG_DEBUG("[HTTPS] Called https.POST - httpCode: %d", httpCode);
                 S0_LOG_DEBUG("Free heap: %d", ESP.getFreeHeap());
 
@@ -144,8 +146,8 @@ int httpPostData(char *data) {
 
                     // file found at server
                     if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
-                        String payload = https.getString();
-                        S0_LOG_DEBUG("[HTTPS] Received response: %s", payload.c_str());
+                        httpData = https.getString();
+                        S0_LOG_DEBUG("[HTTPS] Received response: %s", httpData.c_str());
                     }
                 } else {
                     S0_LOG_ERROR("[HTTPS] https.POST failed, code: %d, error: %s", httpCode, https.errorToString(httpCode).c_str());
@@ -169,7 +171,7 @@ int httpPostData(char *data) {
     }
 }
 
-void prepareDataPayload(char *jsonBuffer, size_t size, RJ45 *workPlugs, unsigned long sampleDuration) {
+void prepareSensorDataPayload(char *jsonBuffer, size_t size, RJ45 *workPlugs, unsigned long sampleDuration) {
     // create document
     StaticJsonDocument<2048> doc;
 
@@ -198,6 +200,37 @@ void prepareDataPayload(char *jsonBuffer, size_t size, RJ45 *workPlugs, unsigned
     serializeJson(doc, jsonBuffer, size);
 }
 
+/**
+ * Sends a sensor data to the server at the configured endpoint.
+ */
+void sendSensorDataPayload() {
+    S0_LOG_INFO("Will post to server...");
+
+    // keep track of when we last sent data
+    samplePeriodStart = now;
+    S0_LOG_DEBUG("Set timestamp samplePeriodStart to now");
+
+    // copy S0Device structs
+    RJ45 plugs_copy[RJ45_PLUG_COUNT];
+    for (uint8_t i = 0; i < RJ45_PLUG_COUNT; i++) {
+        plugs_copy[i].activeDevices = plugs_runtime[i].activeDevices;
+        for (uint8_t j = 0; j < plugs_runtime[i].activeDevices; j++) {
+            plugs_copy[i].devices[j] = plugs_runtime[i].devices[j];
+            plugs_runtime[i].devices[j].count = 0;
+            plugs_copy[i].devices[j].isr = 0;
+        }
+    }
+    S0_LOG_DEBUG("Made memory copy of data structs");
+
+    // prepare payload
+    char payload[2048];
+    prepareSensorDataPayload(payload, sizeof(payload), plugs_copy, deviceconfig.delay_post);
+    S0_LOG_DEBUG("Prepared payload");
+
+    httpPostData(payload);
+    S0_LOG_DEBUG("Done attempting to send payload");
+}
+
 void prepareControlRestartPayload(char *jsonBuffer, size_t size) {
     // create document
     StaticJsonDocument<256> doc;
@@ -221,7 +254,7 @@ void prepareControlRestartPayload(char *jsonBuffer, size_t size) {
  * Sends a restart control message to the server at the configured endpoint if there is 
  * an endpoint and the device just came up.
  */
-void pingServerOnStart() {
+void sendControlRestartPayload() {
     // this is the first run - tell web server we restarted
     S0_LOG_DEBUG("Connected to wifi - send ping to server on start");
 
@@ -298,7 +331,7 @@ void loop() {
 
     if (WiFi.status() == WL_CONNECTED && justReset && hasWebEndpoint() && now > DELAY_SERVER_PING) {
         // send control message to server if we just came up
-        pingServerOnStart();
+        sendControlRestartPayload();
         justReset = false;
     }
 
@@ -327,30 +360,6 @@ void loop() {
     }
 
     if (WiFi.status() == WL_CONNECTED && hasWebEndpoint() && now - samplePeriodStart > deviceconfig.delay_post) {
-        S0_LOG_INFO("Will post to server...");
-
-        // keep track of when we last sent data
-        samplePeriodStart = now;
-        S0_LOG_DEBUG("Set timestamp samplePeriodStart to now");
-
-        // copy S0Device structs
-        RJ45 plugs_copy[RJ45_PLUG_COUNT];
-        for (uint8_t i = 0; i < RJ45_PLUG_COUNT; i++) {
-            plugs_copy[i].activeDevices = plugs_runtime[i].activeDevices;
-            for (uint8_t j = 0; j < plugs_runtime[i].activeDevices; j++) {
-                plugs_copy[i].devices[j] = plugs_runtime[i].devices[j];
-                plugs_runtime[i].devices[j].count = 0;
-                plugs_copy[i].devices[j].isr = 0;
-            }
-        }
-        S0_LOG_DEBUG("Made memory copy of data structs");
-
-        // prepare payload
-        char payload[2048];
-        prepareDataPayload(payload, sizeof(payload), plugs_copy, deviceconfig.delay_post);
-        S0_LOG_DEBUG("Prepared payload");
-
-        httpPostData(payload);
-        S0_LOG_DEBUG("Done attempting to send payload");
+        sendSensorDataPayload();
     }
 }

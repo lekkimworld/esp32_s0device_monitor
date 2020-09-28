@@ -1,11 +1,17 @@
 window.onload = () => {
-    document.querySelectorAll("button").forEach(btn => {
-        // get rel
-        const rel = btn.getAttribute("rel");
-        if (!rel) return;
+    // get rel
+    const endpoints = {};
+    document.querySelectorAll("link").forEach(lnk => {
+        const r = lnk.getAttribute("rel");
+        if (r.indexOf("x-s0-") === 0) {
+            endpoints[r.substring(5)] = lnk.getAttribute("href");
+        }
+    })
 
+    // load data is there is a data endpoint
+    if (endpoints.data) {
         // load existing data
-        fetch(`/${rel}.json`).then(res => res.json()).then(data => {
+        fetch(endpoints.data).then(res => res.json()).then(data => {
             Object.keys(data).forEach(key => {
                 let elem = document.getElementById(key);
                 if (elem) elem.innerText = data[key];
@@ -14,6 +20,11 @@ window.onload = () => {
                 if (elem) elem.value = data[key];
             })
         })
+    }
+
+    document.querySelectorAll("button").forEach(btn => {
+        const r = btn.getAttribute("rel");
+        if (r !== "save") return;
 
         // add click listener
         btn.addEventListener("click", ev => {
@@ -30,7 +41,7 @@ window.onload = () => {
                 }
 
             })
-            fetch(`/${rel}.save`, {
+            fetch(endpoints[r], {
                 "method": "post",
                 "headers": {
                     "Content-Type": "application/json"
