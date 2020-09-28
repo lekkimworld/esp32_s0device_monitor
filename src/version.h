@@ -1,2 +1,2 @@
-#define VERSION_NUMBER "20200928T1305"
-#define VERSION_LASTCHANGE "Add HTTP status and sensor data menu items"
+#define VERSION_NUMBER "20200928T1515"
+#define VERSION_LASTCHANGE "Fix dependency versions"
