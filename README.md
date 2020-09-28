@@ -22,74 +22,52 @@ T-568B: https://www.bittree.com/blogs/get-connected/rj45-pinout
 * Pin 6: (green) S0+
 * Pin 7: (brown/white) S0-
 * Pin 8: (brown) S0+
+
+### RJ45 plug pinout ###
+*Bottom up*
 ```
-S0+ --> button right --> 5v
-S0- --> button left --> 4,7kOhm --> signal pin
-                                --> 10kOhm --> Ground
+     O      O
+  2o  4o  6o  8o
+1o  3o  5o  7o
+```
+*Top down*
+```
+     O      O
+  7o  5o  3o  1o
+8o  6o  4o  2o
 ```
 
-## Pin map ##
-* I2C
-    * SDA 21
-    * SCL 22
-* RJ45 plug 1
-    * Orange
-        * ISR 35
-        * LED 19
-    * Brown
-        * ISR 34
-        * LED 18
-    * Blue  
-        * ISR 39
-        * LED 5
-    * Green
-        * ISR 36
-        * LED 17
-* RJ45 plug 2
-    * Orange
-        * ISR 32
-        * LED 16
-    * Brown
-        * ISR 33
-        * LED 4
-    * Green
-        * ISR 25
-        * LED 2
-    * Blue  
-        * ISR 26
-        * LED 15
-* Buttons
-    * Menu up
-        * IRQ 27
-    * Menu down
-        * IRQ 14
-    * Menu up
-        * IRQ 12
-    * Menu up
-        * IRQ 13
-* Free
-    * Right
-        * 1
-        * 3
-        * 23
+### Wire colors ###
+* P0D0 = orange
+* P0D1 = brown
+* P0D2 = blue
+* P0D3 = green
+* P1D0 = orange
+* P1D1 = brown
+* P1D2 = blue
+* P1D3 = green
 
-## Dependencies ##
-ArduinoLog
-https://github.com/thijse/Arduino-Log
-
- Log.trace(F("Configuring plugs and devices"));
-    strcpy(plugs[0].name, "Yellow RJ45");
-    strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].name, "tumbler (Or)   : %d");
-    strcpy(plugs[0].devices[DEVICE_IDX_ORANGE].id,   "s0dryer");
-    strcpy(plugs[0].devices[DEVICE_IDX_BROWN].name,  "Vaskemask. (Br): %d");
-    strcpy(plugs[0].devices[DEVICE_IDX_BROWN].id,    "s0washer");
-    strcpy(plugs[0].devices[DEVICE_IDX_GREEN].name,  "Opvask. (Gr)   : %d");
-    strcpy(plugs[0].devices[DEVICE_IDX_GREEN].id,    "s0dishwasher");
-    strcpy(plugs[0].devices[DEVICE_IDX_BLUE].name,   "Varmepumpe (Bl): %d");
-    strcpy(plugs[0].devices[DEVICE_IDX_BLUE].id,     "s0heatpump");
-    plugs[0].activeDevices = 4;
-
-    strcpy(plugs[1].name, "White RJ45");
-    strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].id,   "s0floorbath");
-    strcpy(plugs[1].devices[DEVICE_IDX_ORANGE].name, "Bad, gulvvarme : %d");
-    plugs[1].activeDevices = 1;
+### ESP32 on PCB pinout ###
+```
+           ANT
+      V3 -    - 
+         -    - 
+BTN P0D3 -    -
+BTN P0D2 -    -
+BTN P0D1 -    -
+BTN P0D0 -    -
+BTN P1D0 -    -
+BTN P1D1 -    - P1D3 LED
+BTN P1D2 -    - P1D2 LED
+BTN P1D3 -    - P1D1 LED
+         -    - P1D0 LED
+         -    - P0D3 LED
+         -    - P0D2 LED
+         -    - 
+         -    - P0D1 LED
+         -    - P0D0 LED
+         -    - 
+         -    - 
+         -    - 
+           USB
+```
