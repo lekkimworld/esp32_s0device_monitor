@@ -12,6 +12,11 @@ table {
     font-size: 1rem;
 }
 
+code {
+    font-family: Courier;
+    white-space: pre-wrap;
+}
+
 input {
     display: table-cell;
     width: 80%;
