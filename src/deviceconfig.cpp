@@ -289,11 +289,15 @@ void ConfigWebServer::_sensorData() {
     this->server->on("/sensordata.json", HTTP_GET, [this](AsyncWebServerRequest *request){
         StaticJsonDocument<1024> doc;
         char buffer[20];
+        // loop plugs
         for (uint8_t i=0; i<RJ45_PLUG_COUNT; i++) {
-            for (uint8_t k=0; k<DEVICES_PER_PLUG; k++) {
-                uint8_t idx = i * DEVICES_PER_PLUG + k;
+            // loop active devices on that plug
+            for (uint8_t k=0; k<plugs_runtime[i].activeDevices; k++) {
+                // add to json document
+                sprintf(buffer, "plug_%d_device_%d_id", i, k);
+                doc[buffer].set(plugs_runtime[i].devices[k].id);
                 sprintf(buffer, "plug_%d_device_%d_name", i, k);
-                doc[buffer].set(s0config[idx].name);
+                doc[buffer].set(plugs_runtime[i].devices[k].name);
                 sprintf(buffer, "plug_%d_device_%d_value", i, k);
                 doc[buffer].set(plugs_runtime[i].devices[k].count);
             }

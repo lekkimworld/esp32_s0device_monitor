@@ -1,2 +1,2 @@
-#define VERSION_NUMBER "20200928T1515"
-#define VERSION_LASTCHANGE "Fix dependency versions"
+#define VERSION_NUMBER "20200930T1050"
+#define VERSION_LASTCHANGE "Only send sensor data for active devices"
