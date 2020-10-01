@@ -14,7 +14,6 @@
 #include "config.h"
 #include "pem.h"
 #include "utils.h"
-#include "credentials.h"
 #include "deviceconfig.h"
 #include "isr.h"
 #include "display.h"
