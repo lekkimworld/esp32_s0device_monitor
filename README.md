@@ -6,6 +6,11 @@
 pio run -e dev -t upload && pio run -e dev -t uploadfs
 ```
 
+### OTA ###
+```
+pio run -e dev -t upload --upload-port=10.20.30.201 && pio run -e dev -t uploadfs --upload-port=10.20.30.201
+```
+
 ## RJ45 wiring ##
 T-568B: https://www.bittree.com/blogs/get-connected/rj45-pinout
 * Pin 1: (orange/white) S0-

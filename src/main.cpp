@@ -17,6 +17,7 @@
 #include "deviceconfig.h"
 #include "isr.h"
 #include "display.h"
+#include "ota.h"
 
 // configuration read / written to EEPROM
 RJ45Config      rj45config[RJ45_PLUG_COUNT];
@@ -295,10 +296,18 @@ void setup() {
         
     } else {
         // we have valid config
+        if (strlen(wificonfig.ssid) > 0) {
+            S0_LOG_INFO("Initializing wifi");
+            initializeWifi();
+            S0_LOG_INFO("Initializing OTA");
+            setupOTA(ssid);
+        }
+
         S0_LOG_INFO("Initializing ISR's and pins");
-        initializeWifi();
         initializePins();
         samplePeriodStart = millis();
+
+        
     }
 
     // create config server and init it
