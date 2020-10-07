@@ -348,12 +348,13 @@ void ConfigWebServer::init() {
     });
 
     this->server->on("/version.json", HTTP_GET, [](AsyncWebServerRequest *request) {
-        char buffer[1024];
-        sprintf(buffer, "{\"version\": \"%s\", \"change\": \"%s\"}", VERSION_NUMBER, VERSION_LASTCHANGE);
+        StaticJsonDocument<1024> doc;
+        doc["version"].set(VERSION_NUMBER);
+        doc["change"].set(VERSION_LASTCHANGE);
+        doc["type"].set(VERSION_TYPE);
 
         AsyncResponseStream *response = request->beginResponseStream("application/json");
-        response->setCode(200);
-        response->print(buffer);
+        serializeJson(doc, *response);
         request->send(response);
     });
 
