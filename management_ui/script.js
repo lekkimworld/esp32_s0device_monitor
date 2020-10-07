@@ -17,7 +17,13 @@ window.onload = () => {
                 if (elem) elem.innerText = data[key];
 
                 elem = document.querySelector(`input[name=${key}]`);
-                if (elem) elem.value = data[key];
+                if (elem) {
+                    if (elem.type === "checkbox") {
+                        elem.checked = data[key];
+                    } else {
+                        elem.value = data[key];
+                    }
+                }
             })
         })
     }
@@ -58,7 +64,7 @@ window.onload = () => {
                 console.log(err)
 
             }).then(() => {
-                let count = 15;
+                let count = 10;
 
                 const overlay = document.createElement("div");
                 overlay.className = "overlay overlay_blocker";

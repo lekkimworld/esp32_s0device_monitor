@@ -30,6 +30,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 ConfigWebServer *server;
 unsigned long lastPageChange = 0;
 unsigned long samplePeriodStart = 0;
+unsigned long lastWifiAttempt = 0; // set to low number to ensure we reconnect to wifi immediately on mcu start
 unsigned long now = millis();
 bool justReset = true;
 bool softAPEnabled = false;
@@ -73,6 +74,23 @@ void initializePins() {
 }
 
 void initializeWifi() {
+    // ensure we have a ssid for wifi
+    if (strlen(wificonfig.ssid) <= 0) return;
+
+    // if already connected abort
+    if (WiFi.status() == WL_CONNECTED) {
+        return;
+    }
+
+    // ensure we do not try too often
+    if (lastWifiAttempt != 0 && millis() - lastWifiAttempt < DELAY_WIFI_CONNECTION_RECONNECT) {
+        return;
+    }
+
+    // set time for when we last reconnected
+    lastWifiAttempt = millis();
+    justReset = true;
+
     // init wifi
     S0_LOG_INFO("Starting to initiate wi-fi connection");
     WiFi.begin(wificonfig.ssid, wificonfig.password);
@@ -85,12 +103,23 @@ void initializeWifi() {
         S0_LOG_DEBUG(buffer);
         writeDisplay(buffer);
     }
+    if (WiFi.status() != WL_CONNECTED) {
+        // we couldn't connect
+        S0_LOG_ERROR("Unable to connect to wifi");
+        return;
+    }
 
-    S0_LOG_INFO("Received IP: %s", WiFi.localIP().toString().c_str());
-    
+    // log ip and mac
     char mac_addr[32];
     getMacAddressString(mac_addr);
+    S0_LOG_INFO("Received IP: %s", WiFi.localIP().toString().c_str());
     S0_LOG_INFO("MAC address: %s", mac_addr);
+
+    // init OTA
+    char networkname[32];
+    buildNetworkName(networkname);
+    S0_LOG_INFO("Initializing OTA: %s", networkname);
+    setupOTA(networkname);
 }
 
 void turnOffLed(S0Device *device) {
@@ -296,18 +325,11 @@ void setup() {
         
     } else {
         // we have valid config
-        if (strlen(wificonfig.ssid) > 0) {
-            S0_LOG_INFO("Initializing wifi");
-            initializeWifi();
-            S0_LOG_INFO("Initializing OTA");
-            setupOTA(ssid);
-        }
-
+        initializeWifi();
+        
         S0_LOG_INFO("Initializing ISR's and pins");
         initializePins();
         samplePeriodStart = millis();
-
-        
     }
 
     // create config server and init it
@@ -336,6 +358,9 @@ void loop() {
         WiFi.enableAP(false);
         softAPEnabled = false;
     }
+
+    // (re)connect to wifi
+    initializeWifi();
 
     if (WiFi.status() == WL_CONNECTED && justReset && hasWebEndpoint() && now > DELAY_SERVER_PING) {
         // send control message to server if we just came up

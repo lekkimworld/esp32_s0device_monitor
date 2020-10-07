@@ -16,6 +16,8 @@
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
+#define DELAY_POST_DEFAULT 120000L
+#define DELAY_WIFI_CONNECTION_RECONNECT 60000L // only attempt to reconnect to wifi once a minute
 #define DELAY_TURNOFF_AP 300000L        // delay after restart before turning off access point, in milliseconds
 
 typedef struct {

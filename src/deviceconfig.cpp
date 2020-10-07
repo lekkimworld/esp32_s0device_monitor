@@ -13,6 +13,15 @@ extern RJ45 plugs_runtime[];
 extern int httpCode;
 extern String httpData; 
 
+// define an onDisconnect handler to restart ESP once response has been sent
+ArDisconnectHandler disconnectHandler = []() {
+    S0_LOG_DEBUG("request->onDisconnect called - restarting ESP");
+    ESP.restart();
+    while (true) {
+        yield();
+    }
+};
+
 String _templateProcessor(const String& var) {
     if (var == "TITLE") return F("S0 Monitor");
     if (var == "VERSION_NUMBER") return VERSION_NUMBER;
@@ -90,17 +99,10 @@ void ConfigWebServer::_wifiConfig() {
         } else {
             response->println("{\"status\": \"error\", \"message\": \"no callback present\"}");
         }
+
+        if (!rc) request->onDisconnect(disconnectHandler);
         request->send(response);
         S0_LOG_DEBUG("[DEVICECONFIG] Sent response to caller");
-
-        // restart if callback returned 0
-        if (!rc) {
-            ESP.restart();
-            // restart() doesn't always end execution
-            while (true) {
-                yield();
-            }
-        }
     });
     this->server->addHandler(handler);
 }
@@ -114,7 +116,7 @@ void ConfigWebServer::_deviceConfig() {
         sprintf(jwtbuf, "%.10s****", deviceconfig.jwt);
 
         StaticJsonDocument<256> doc;
-        doc["delay_post"].set(deviceconfig.delay_post);
+        doc["delay_post"].set(deviceconfig.delay_post <= 0 ? DELAY_POST_DEFAULT : deviceconfig.delay_post);
         doc["endpoint"].set(deviceconfig.endpoint);
         doc["jwt"].set(jwtbuf);
         doc["prod_cert"].set(deviceconfig.productionCert);
@@ -171,17 +173,10 @@ void ConfigWebServer::_deviceConfig() {
         } else {
             response->println("{\"status\": \"error\", \"message\": \"no callback present\"}");
         }
+
+        if (!rc) request->onDisconnect(disconnectHandler);
         request->send(response);
         S0_LOG_DEBUG("[DEVICECONFIG] Sent response to caller");
-
-        // restart if callback returned 0
-        if (!rc) {
-            ESP.restart();
-            // restart() doesn't always end execution
-            while (true) {
-                yield();
-            }
-        }
     });
     this->server->addHandler(handler);
 }
@@ -267,17 +262,10 @@ void ConfigWebServer::_plugConfig() {
         } else {
             response->println("{\"status\": \"error\", \"message\": \"no callback present\"}");
         }
+        
+        if (!rc) request->onDisconnect(disconnectHandler);
         request->send(response);
         S0_LOG_DEBUG("[DEVICECONFIG] Sent response to caller");
-
-        // restart if callback returned 0
-        if (!rc) {
-            ESP.restart();
-            // restart() doesn't always end execution
-            while (true) {
-                yield();
-            }
-        }
     });
     this->server->addHandler(handler);
 }
