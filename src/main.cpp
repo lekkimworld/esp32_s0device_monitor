@@ -36,6 +36,7 @@ bool justReset = true;
 bool softAPEnabled = false;
 int httpCode;
 String httpData;
+unsigned long rj45sampleperiod = 0;
 RJ45 plugs_runtime[2];
 
 // Create a new syslog instance with LOG_KERN facility
@@ -131,10 +132,11 @@ void turnOffLed(S0Device *device) {
 
 int httpPostData(char *data) {
     // prepare headers
+    int rc = 1;
     uint16_t contentLength = strlen(data);
     char str_contentLength[5];
     sprintf(str_contentLength, "%4i", contentLength);
-    char bufferAuthHeader[400];
+    char bufferAuthHeader[600];
     sprintf(bufferAuthHeader, "Bearer %s", deviceconfig.jwt);
     S0_LOG_DEBUG("Free heap: %d", ESP.getFreeHeap());
 
@@ -175,29 +177,26 @@ int httpPostData(char *data) {
 
                     // file found at server
                     if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
-                        httpData = https.getString();
+                        rc = 0;
                         S0_LOG_DEBUG("[HTTPS] Received response: %s", httpData.c_str());
                     }
                 } else {
                     S0_LOG_ERROR("[HTTPS] https.POST failed, code: %d, error: %s", httpCode, https.errorToString(httpCode).c_str());
                 }
+                httpData = https.getString();
 
                 https.end();
             } else {
                 S0_LOG_ERROR("[HTTPS] Unable to connect\n");
             }
-
-            // End extra scoping block
-        }
+        } // End extra scoping block
         S0_LOG_DEBUG("Free heap: %d", ESP.getFreeHeap());
-
         delete client;
-        return 1;
 
     } else {
         S0_LOG_ERROR("Unable to create client");
-        return 0;
     }
+    return rc;
 }
 
 void prepareSensorDataPayload(char *jsonBuffer, size_t size, RJ45 *workPlugs, unsigned long sampleDuration) {
@@ -239,6 +238,9 @@ void sendSensorDataPayload() {
     samplePeriodStart = now;
     S0_LOG_DEBUG("Set timestamp samplePeriodStart to now");
 
+    // how long have we been sampling (last value plus configured period)
+    unsigned long sampleperiod_send = deviceconfig.delay_post + rj45sampleperiod;
+
     // copy S0Device structs
     RJ45 plugs_copy[RJ45_PLUG_COUNT];
     for (uint8_t i = 0; i < RJ45_PLUG_COUNT; i++) {
@@ -250,14 +252,26 @@ void sendSensorDataPayload() {
         }
     }
     S0_LOG_DEBUG("Made memory copy of data structs");
+    S0_LOG_DEBUG("Sample period send: %lu", sampleperiod_send);
 
     // prepare payload
     char payload[2048];
-    prepareSensorDataPayload(payload, sizeof(payload), plugs_copy, deviceconfig.delay_post);
+    prepareSensorDataPayload(payload, sizeof(payload), plugs_copy, sampleperiod_send);
     S0_LOG_DEBUG("Prepared payload");
 
-    httpPostData(payload);
-    S0_LOG_DEBUG("Done attempting to send payload");
+    int rc = httpPostData(payload);
+    if (0 == rc) {
+        S0_LOG_DEBUG("Succesfully sent payload");
+        rj45sampleperiod = 0; // success - reset 
+    } else {
+        S0_LOG_ERROR("Error attempting to post payload via HTTP - copy data back");
+        rj45sampleperiod = sampleperiod_send; // error - keep sample period so it accumulates
+        for (uint8_t i = 0; i < RJ45_PLUG_COUNT; i++) {
+            for (uint8_t j = 0; j < plugs_runtime[i].activeDevices; j++) {
+                plugs_runtime[i].devices[j].count += plugs_copy[i].devices[j].count;
+            }
+        }
+    }
 }
 
 void prepareControlRestartPayload(char *jsonBuffer, size_t size) {
