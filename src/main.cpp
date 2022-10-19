@@ -134,7 +134,7 @@ int httpPostData(char *data) {
     uint16_t contentLength = strlen(data);
     char str_contentLength[5];
     sprintf(str_contentLength, "%4i", contentLength);
-    char bufferAuthHeader[400];
+    char bufferAuthHeader[450];
     sprintf(bufferAuthHeader, "Bearer %s", deviceconfig.jwt);
     S0_LOG_DEBUG("Free heap: %d", ESP.getFreeHeap());
 
@@ -290,6 +290,7 @@ void sendControlRestartPayload() {
     // prep payload
     char payload[256];
     prepareControlRestartPayload(payload, sizeof(payload));
+    S0_LOG_DEBUG("Constructed payload for server ping - send with http");
 
     // send payload
     httpPostData(payload);

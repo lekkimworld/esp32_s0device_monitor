@@ -1,3 +1,3 @@
-#define VERSION_NUMBER "20201007T1150"
-#define VERSION_LASTCHANGE "UI fixes, ensure reconnection to wifi, fix restart on config save"
+#define VERSION_NUMBER "20221018T18:45"
+#define VERSION_LASTCHANGE "Extend auth header"
 #define VERSION_TYPE "S0Monitor"

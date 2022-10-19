@@ -47,7 +47,7 @@ typedef struct {
 } RJ45;
 
 // define struct to hold general config
-#define CONFIGURATION_VERSION 2
+#define CONFIGURATION_VERSION 3
 typedef struct {
   uint8_t version = CONFIGURATION_VERSION;
   bool productionCert = false;
