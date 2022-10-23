@@ -8,6 +8,7 @@
 #include <Adafruit_GFX.h>
 #include <Wire.h>
 
+#include "version.h"
 #include "constants.h"
 #include "types.h"
 #include "logging.h"
@@ -161,6 +162,8 @@ int httpPostData(char *data) {
                 https.addHeader("Content-Type", "application/json");
                 https.addHeader("Accept", "application/json");
                 https.addHeader("Content-Length", str_contentLength);
+                https.addHeader("X-Client-Version", VERSION_NUMBER);
+                https.addHeader("X-Client-Type", VERSION_TYPE);
 
                 // do post
                 S0_LOG_DEBUG("[HTTPS] POSTing data");
